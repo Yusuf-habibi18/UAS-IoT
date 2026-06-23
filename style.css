@@ -1,0 +1,13 @@
+.glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-anim {
+    transition: all 0.5s ease-in-out;
+}
+
+body {
+    background: radial-gradient(circle at top right, #1e293b, #0f172a);
+}
