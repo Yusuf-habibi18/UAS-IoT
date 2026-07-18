@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard Monitoring Powermeter — Plant 1 Jawa Timur</title>
+<meta name="description" content="Dashboard monitoring powermeter realtime via MQTT SSL/TLS: tegangan, arus, daya aktif, suhu, dan energi." />
+<meta name="theme-color" content="#07070f" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307070f'/%3E%3Cpath d='M17 6 8 18h6l-1 8 9-12h-6l1-8Z' fill='%23B026FF'/%3E%3C/svg%3E" />
+
+<style>
+  
+  :root{
+    --void:        #07070F;
+    --void-deep:   #050509;
+    --panel:       rgba(18,18,34,.55);
+    --panel-solid: #12121F;
+    --line:        rgba(178,38,255,.16);
+
+    --violet:      #B026FF;
+    --violet-dim:  #7A1CB0;
+    --cyan:        #00E5FF;
+    --amber:       #FFB020;
+    --magenta:     #FF2E9F;
+    --mint:        #39FF88;
+    --danger:      #FF3B5C;
+
+    --ink:         #E9E6FF;
+    --ink-dim:     rgba(233,230,255,.55);
+
+    --font-display: 'Exo 2', sans-serif;
+    --font-body:    'Manrope', sans-serif;
+    --font-mono:    'JetBrains Mono', monospace;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ height:100%; }
+  body{
+    background: var(--void);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  ::selection{ background: var(--violet); color: #fff; }
+  ::-webkit-scrollbar{ width: 8px; height:8px; }
+  ::-webkit-scrollbar-track{ background: var(--void-deep); }
+  ::-webkit-scrollbar-thumb{ background: linear-gradient(var(--violet), var(--cyan)); border-radius: 8px; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
+  }
+
+  .font-display{ font-family: var(--font-display); letter-spacing: .02em; }
+  .font-mono{ font-family: var(--font-mono); }
+
+  #circuit-bg{ position:fixed; inset:0; z-index:0; opacity:.55; }
+  .void-vignette{
+    position:fixed; inset:0; z-index:1; pointer-events:none;
+    background: radial-gradient(ellipse 90% 70% at 50% 0%, transparent 40%, var(--void) 100%);
+  }
+  .grid-static{
+    position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.5;
+    background-image:
+      linear-gradient(rgba(178,38,255,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(178,38,255,.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .scanline-overlay{
+    position:fixed; inset:0; z-index:2; pointer-events:none; opacity:.35;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,.12) 1px, rgba(0,0,0,0) 2px);
+  }
+  .scan-sweep{
+    position:fixed; left:0; right:0; height:120px; z-index:2; pointer-events:none;
+    background: linear-gradient(180deg, transparent, rgba(0,229,255,.05), transparent);
+    animation: sweepDown 7s linear infinite;
+  }
+  @keyframes sweepDown{ 0%{ top:-120px; } 100%{ top:100%; } }
+
+  .cyber-panel{
+    position: relative;
+    background: var(--panel);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+  }
+  .cyber-panel::before{
+    content:''; position:absolute; inset:0; border-radius:18px; padding:1px;
+    background: linear-gradient(135deg, rgba(178,38,255,.5), rgba(0,229,255,.15) 40%, transparent 70%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events:none;
+  }
+
+  .hud-corners::after, .hud-corners::before{
+    content:''; position:absolute; width:14px; height:14px;
+    border-color: var(--cyan); opacity:.7; pointer-events:none;
+  }
+  .hud-corners::before{ top:6px; left:6px; border-top:2px solid; border-left:2px solid; }
+  .hud-corners::after{ bottom:6px; right:6px; border-bottom:2px solid; border-right:2px solid; }
+
+  .glitch{ position:relative; display:inline-block; }
+  .glitch::before, .glitch::after{
+    content: attr(data-text);
+    position:absolute; left:0; top:0; width:100%; height:100%;
+    overflow:hidden; background: var(--void);
+  }
+  .glitch::before{
+    color: var(--cyan);
+    animation: glitchTop 4.5s infinite linear alternate-reverse;
+    clip-path: inset(0 0 55% 0);
+  }
+  .glitch::after{
+    color: var(--magenta);
+    animation: glitchBottom 3.7s infinite linear alternate-reverse;
+    clip-path: inset(55% 0 0 0);
+  }
+  @keyframes glitchTop{
+    0%,92%,100%{ transform: translate(0,0); opacity:0; }
+    93%{ transform: translate(-2px,-1px); opacity:.8; }
+    95%{ transform: translate(2px,1px); opacity:.8; }
+    97%{ transform: translate(-1px,0); opacity:.6; }
+  }
+  @keyframes glitchBottom{
+    0%,90%,100%{ transform: translate(0,0); opacity:0; }
+    91%{ transform: translate(2px,1px); opacity:.8; }
+    94%{ transform: translate(-2px,-1px); opacity:.8; }
+    96%{ transform: translate(1px,0); opacity:.6; }
+  }
+
+  .radar-dot{ position:relative; }
+  .radar-dot::before{
+    content:''; position:absolute; inset:-6px; border-radius:9999px;
+    border: 1.5px solid currentColor; opacity:.7;
+    animation: radarPing 1.8s cubic-bezier(0,0,.2,1) infinite;
+  }
+  @keyframes radarPing{ 0%{ transform:scale(.7); opacity:.8; } 100%{ transform:scale(2.2); opacity:0; } }
+
+  .metric-card{ transition: box-shadow .4s ease, transform .3s ease; }
+  .metric-card:hover{ transform: translateY(-3px); }
+  .flash-update{ animation: flashGlow .6s ease; }
+  @keyframes flashGlow{
+    0%{ box-shadow: 0 0 0 rgba(255,255,255,0); }
+    30%{ box-shadow: 0 0 32px var(--flash-color, rgba(0,229,255,.55)); }
+    100%{ box-shadow: 0 0 0 rgba(255,255,255,0); }
+  }
+  .metric-bar{ height:4px; border-radius:999px; background: rgba(255,255,255,.06); overflow:hidden; }
+  .metric-bar > span{ display:block; height:100%; border-radius:999px; transition: width .8s cubic-bezier(.22,1,.36,1); }
+
+  .stat-number{ font-variant-numeric: tabular-nums; font-feature-settings:"tnum"; }
+
+  .gauge-ring{ transform: rotate(-90deg); transform-origin:50% 50%; }
+  .gauge-ring circle{ transition: stroke-dashoffset 1s cubic-bezier(.22,1,.36,1); }
+
+  .cyber-toggle{
+    width: 64px; height: 32px; border-radius: 999px; position: relative; cursor: pointer;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    transition: background .3s ease, border-color .3s ease, box-shadow .3s ease;
+  }
+  .cyber-toggle .knob{
+    position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%;
+    background: #6b7280; transition: transform .3s cubic-bezier(.22,1,.36,1), background .3s ease, box-shadow .3s ease;
+  }
+  .cyber-toggle.on{ border-color: var(--mint); box-shadow: 0 0 18px rgba(57,255,136,.35), inset 0 0 12px rgba(57,255,136,.12); }
+  .cyber-toggle.on .knob{ transform: translateX(32px); background: var(--mint); box-shadow: 0 0 10px var(--mint); }
+  .cyber-toggle.off.armed{ border-color: rgba(255,59,92,.4); }
+  .cyber-toggle:disabled{ cursor: not-allowed; }
+
+  .term-table tbody tr{ border-bottom: 1px solid rgba(255,255,255,.05); }
+  .term-table tbody tr:hover{ background: rgba(178,38,255,.06); }
+  .row-in{ animation: rowIn .4s ease; }
+  @keyframes rowIn{ from{ opacity:0; transform: translateY(-6px);} to{ opacity:1; transform:none; } }
+
+  .toast-stack{ position: fixed; bottom: 20px; right: 20px; z-index: 200; display:flex; flex-direction:column; gap:10px; }
+  .toast-item{
+    animation: toastIn .35s cubic-bezier(.22,1,.36,1);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  @keyframes toastIn{ from{ opacity:0; transform: translateX(30px);} to{ opacity:1; transform:none; } }
+
+  .btn-neon{ position:relative; isolation:isolate; overflow:hidden; }
+  .btn-neon::after{
+    content:''; position:absolute; inset:0; z-index:-1; opacity:0;
+    background: radial-gradient(circle at 50% 120%, currentColor, transparent 70%);
+    transition: opacity .3s ease;
+  }
+  .btn-neon:hover::after{ opacity:.25; }
+
+  .reveal{ opacity:0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; transition-delay: var(--d,0s); }
+  .reveal.is-visible{ opacity:1; transform:none; }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation: none !important; transition: none !important; }
+    .reveal{ opacity:1; transform:none; }
+  }
+
+  .auth-shell{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .auth-card{ width:100%; max-width:420px; animation: bootIn .6s cubic-bezier(.22,1,.36,1); }
+  @keyframes bootIn{ from{ opacity:0; transform: translateY(18px) scale(.98); } to{ opacity:1; transform:none; } }
+
+  .cyber-input{
+    width:100%; background: rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.12);
+    border-radius: 12px; padding: 11px 14px; color: var(--ink);
+    font-family: var(--font-mono); font-size: 14px;
+    transition: border-color .25s ease, box-shadow .25s ease;
+  }
+  .cyber-input:focus{ outline:none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,229,255,.12); }
+  .cyber-input::placeholder{ color: rgba(233,230,255,.3); }
+
+  .auth-error{
+    background: rgba(255,59,92,.08); border:1px solid rgba(255,59,92,.35); color: var(--danger);
+    border-radius: 10px; padding: 10px 14px; font-size: 12px; font-family: var(--font-mono);
+    animation: shakeX .4s ease;
+  }
+  @keyframes shakeX{ 0%,100%{ transform: translateX(0);} 25%{ transform: translateX(-5px);} 75%{ transform: translateX(5px);} }
+
+  .divider-line{ display:flex; align-items:center; gap:12px; color: var(--ink-dim); font-size:11px; font-family: var(--font-mono); text-transform:uppercase; letter-spacing:.15em; }
+  .divider-line::before, .divider-line::after{ content:''; flex:1; height:1px; background: rgba(255,255,255,.1); }
+
+  .demo-badge{
+    background: linear-gradient(90deg, rgba(255,176,32,.15), rgba(255,46,159,.15));
+    border: 1px solid rgba(255,176,32,.35); color: var(--amber);
+  }
+
+  .btn-primary-cyber{
+    background: linear-gradient(120deg, var(--violet), var(--cyan));
+    background-size: 200% 200%;
+    animation: gradientShift 5s ease infinite;
+    color: #050509; font-weight:700;
+  }
+  @keyframes gradientShift{ 0%{background-position:0% 50%;} 50%{background-position:100% 50%;} 100%{background-position:0% 50%;} }
+
+  .spinner{
+    width:16px; height:16px; border-radius:50%;
+    border: 2px solid rgba(0,0,0,.25); border-top-color:#050509;
+    animation: spin .7s linear infinite; display:inline-block;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  .gauge-mini{ width:64px; height:64px; }
+</style>
+</head>
+<body>
+
+<canvas id="circuit-bg" aria-hidden="true"></canvas>
+<div class="void-vignette" aria-hidden="true"></div>
+<div class="grid-static" aria-hidden="true"></div>
+<div class="scanline-overlay" aria-hidden="true"></div>
+<div class="scan-sweep" aria-hidden="true"></div>
+
+<!-- AUTH FORM -->
+<div id="auth-section" class="auth-shell relative z-10">
+  <div class="auth-card cyber-panel hud-corners rounded-2xl p-8">
+    <div class="text-center mb-7">
+      <div class="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4" style="background: rgba(178,38,255,.12); border: 1px solid rgba(178,38,255,.35);">
+        <i data-lucide="gauge" class="w-7 h-7" style="color: var(--violet);"></i>
+      </div>
+      <h1 class="glitch font-display text-xl font-semibold tracking-wide text-white" data-text="DASHBOARD MONITORING POWERMETER">DASHBOARD MONITORING POWERMETER</h1>
+      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-2 uppercase tracking-widest">Plant 1 &ndash; Jawa Timur</p>
+      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-3 uppercase tracking-widest">Autentikasi Operator Diperlukan</p>
+    </div>
+
+    <form id="auth-form" class="space-y-4">
+      <div>
+        <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Username</label>
+        <div class="relative">
+          <i data-lucide="user" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+          <input id="f-username" type="text" class="cyber-input pl-10" required value="kelompok2" autocomplete="username" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Password</label>
+        <div class="relative">
+          <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+          <input id="f-password" type="password" class="cyber-input pl-10 pr-10" required value="kelompok2" autocomplete="current-password" />
+          <button type="button" id="toggle-password-btn" class="absolute right-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);" aria-label="Tampilkan password">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <div id="auth-error" class="auth-error hidden flex items-start gap-2">
+        <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5"></i>
+        <span id="auth-error-text"></span>
+      </div>
+
+      <button id="connect-btn" type="submit" class="btn-primary-cyber btn-neon w-full py-3 rounded-xl font-display text-sm tracking-wide uppercase flex items-center justify-center gap-2 disabled:opacity-60">
+        <i data-lucide="log-in" class="w-4 h-4"></i>
+        <span>Masuk</span>
+      </button>
+      <p class="text-[11px] text-center text-[color:var(--ink-dim)] font-mono leading-relaxed">
+        Login diverifikasi ke Back-End (Flask), lalu dashboard otomatis terhubung ke broker MQTT untuk monitoring realtime.
+      </p>
+    </form>
+
+    <div class="divider-line my-6">atau</div>
+
+    <button type="button" id="demo-btn" class="btn-neon w-full py-3 rounded-xl font-display text-sm tracking-wide uppercase flex items-center justify-center gap-2 border" style="color: var(--amber); border-color: rgba(255,176,32,.35); background: rgba(255,176,32,.08);">
+      <i data-lucide="flask-conical" class="w-4 h-4"></i> Coba Mode Demo (Tanpa Broker)
+    </button>
+    <p class="text-[11px] text-center text-[color:var(--ink-dim)] mt-3 font-mono leading-relaxed">
+      Mode demo memakai data simulasi lokal &mdash; tidak memerlukan broker MQTT sungguhan.
+    </p>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard-section" class="hidden relative z-10 max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+
+  <header class="cyber-panel hud-corners rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+    <div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <h1 class="glitch font-display text-2xl md:text-3xl font-semibold tracking-wide text-white" data-text="DASHBOARD MONITORING POWERMETER">DASHBOARD MONITORING POWERMETER</h1>
+        <span id="demo-badge" class="demo-badge hidden text-[10px] font-mono uppercase tracking-widest px-2.5 py-1 rounded-full flex items-center gap-1.5">
+          <i data-lucide="flask-conical" class="w-3 h-3"></i> Mode Demo &middot; Data Simulasi
+        </span>
+      </div>
+      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-1 uppercase tracking-widest">Plant 1 &ndash; Jawa Timur</p>
+      <div class="mt-2 flex items-center gap-2 text-xs font-mono uppercase tracking-widest flex-wrap">
+        <span class="text-[color:var(--ink-dim)] normal-case">Dashboard:</span>
+        <span id="status-dot" class="radar-dot inline-block w-2 h-2 rounded-full" style="background: var(--danger); color: var(--danger);"></span>
+        <span id="status-text" style="color: var(--danger);">TERPUTUS</span>
+        <span class="text-[color:var(--ink-dim)]">&middot;</span>
+        <span class="text-[color:var(--ink-dim)] normal-case">Perangkat:</span>
+        <span id="device-status-dot" class="radar-dot inline-block w-2 h-2 rounded-full" style="background: var(--danger); color: var(--danger);"></span>
+        <span id="device-status-text" style="color: var(--danger);">OFFLINE</span>
+        <span id="operator-label" class="text-[color:var(--ink-dim)] normal-case tracking-normal"></span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap justify-end">
+      <div class="flex items-center gap-3 bg-black/30 px-5 py-2.5 rounded-xl border border-white/10">
+        <i data-lucide="clock" class="w-4 h-4"></i>
+        <span id="clock-display" class="font-mono text-sm" style="color: var(--cyan);">--:--:--, --/--/----</span>
+      </div>
+      <button type="button" id="open-config-btn" aria-label="Konfigurasi Sistem" title="Konfigurasi Sistem" class="btn-neon w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 bg-black/30 hover:border-[color:var(--amber)] transition-colors" style="color: var(--amber);">
+        <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+      </button>
+      <button type="button" id="open-devices-btn" aria-label="Device Management" title="Device Management" class="btn-neon w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 bg-black/30 hover:border-[color:var(--cyan)] transition-colors" style="color: var(--cyan);">
+        <i data-lucide="cpu" class="w-4 h-4"></i>
+      </button>
+      <button type="button" id="open-events-btn" aria-label="Log Aktivitas" title="Log Aktivitas" class="btn-neon w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 bg-black/30 hover:border-[color:var(--violet)] transition-colors" style="color: var(--violet);">
+        <i data-lucide="scroll-text" class="w-4 h-4"></i>
+      </button>
+      <button type="button" id="disconnect-btn" aria-label="Logout" title="Logout" class="btn-neon w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 bg-black/30 hover:border-[color:var(--danger)] transition-colors" style="color: var(--danger);">
+        <i data-lucide="log-out" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ALARM BANNER -->
+  <div id="alarm-banner" class="hidden rounded-2xl p-4 flex items-center gap-3" style="background: rgba(255,59,92,.12); border: 1px solid rgba(255,59,92,.4); animation: shakeX .4s ease;">
+    <i data-lucide="siren" class="w-6 h-6 shrink-0" style="color: var(--danger);"></i>
+    <p id="alarm-banner-text" class="font-display text-sm text-white tracking-wide"></p>
+  </div>
+
+  <!-- COMMAND ARRAY (KONTROL AKTUATOR) -->
+  <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+    <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+      <i data-lucide="settings" class="w-4 h-4" style="color: var(--violet);"></i>
+      Command Array
+    </h3>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="flex items-center justify-between bg-black/25 border border-white/10 rounded-xl px-4 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center" style="background: rgba(57,255,136,.13); color: var(--mint);">
+            <i data-lucide="power" class="w-4 h-4"></i>
+          </span>
+          <div>
+            <p class="font-display text-sm tracking-wide text-white">Relay Lampu</p>
+            <p id="relay1-status" class="text-[11px] font-mono uppercase tracking-wider" style="color: var(--ink-dim);">NONAKTIF</p>
+          </div>
+        </div>
+        <button type="button" id="toggle-relay1" role="switch" aria-checked="false" aria-label="Toggle Relay Lampu" class="cyber-toggle off armed">
+          <span class="knob"></span>
+        </button>
+      </div>
+      <div class="flex items-center justify-between bg-black/25 border border-white/10 rounded-xl px-4 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.13); color: var(--amber);">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+          </span>
+          <div>
+            <p class="font-display text-sm tracking-wide text-white">Buzzer Alarm</p>
+            <p id="buzzer-status" class="text-[11px] font-mono uppercase tracking-wider" style="color: var(--ink-dim);">NONAKTIF</p>
+          </div>
+        </div>
+        <button type="button" id="toggle-buzzer" role="switch" aria-checked="false" aria-label="Toggle Buzzer Alarm" class="cyber-toggle off armed">
+          <span class="knob"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESTIMASI BIAYA (bar memanjang) -->
+  <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-biaya" style="--flash-color: var(--amber);">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="wallet" class="w-5 h-5"></i></span>
+        <div>
+          <p class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Estimasi Biaya</p>
+          <p class="text-[10px] font-mono text-[color:var(--ink-dim)] opacity-70">Tarif Rp 1.444 / kWh</p>
+        </div>
+      </div>
+      <p class="stat-number font-display text-3xl text-white" id="val-biaya">&ndash;</p>
+    </div>
+    <div class="metric-bar mt-4"><span id="bar-biaya" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
+  </div>
+
+  <!-- METRIC CARDS -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-volt" style="--flash-color: var(--cyan);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Tegangan (LN)</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(0,229,255,.12); color: var(--cyan);"><i data-lucide="zap" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-volt">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> V</span></p>
+      <div class="metric-bar mt-3"><span id="bar-volt" style="width:0%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan);"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-current" style="--flash-color: var(--violet);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Arus</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(178,38,255,.12); color: var(--violet);"><i data-lucide="activity" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-current">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> mA</span></p>
+      <div class="metric-bar mt-3"><span id="bar-current" style="width:0%; background: var(--violet); box-shadow: 0 0 8px var(--violet);"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-power" style="--flash-color: var(--mint);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Daya Aktif</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(57,255,136,.12); color: var(--mint);"><i data-lucide="cpu" class="w-4 h-4"></i></span>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="relative w-16 h-16 shrink-0">
+          <svg class="gauge-ring w-16 h-16" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8" />
+            <circle id="gauge-power" cx="50" cy="50" r="40" fill="none" stroke="var(--mint)" stroke-width="8" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+          </svg>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span id="gauge-power-pct" class="font-mono text-xs" style="color: var(--mint);">&ndash;</span>
+          </div>
+        </div>
+        <div>
+          <p class="stat-number font-display text-2xl text-white"><span id="val-power">&ndash;</span></p>
+          <p class="text-xs font-mono text-[color:var(--ink-dim)]">W <span id="power-max-label" class="opacity-50">/ 2200W</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-suhu" style="--flash-color: var(--amber);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Suhu</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="thermometer" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-suhu">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> &deg;C</span></p>
+      <div class="metric-bar mt-3"><span id="bar-suhu" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-kelembapan" style="--flash-color: #38BDF8;">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Kelembapan</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(56,189,248,.12); color: #38BDF8;"><i data-lucide="droplets" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-kelembapan">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> %</span></p>
+      <div class="metric-bar mt-3"><span id="bar-kelembapan" style="width:0%; background: #38BDF8; box-shadow: 0 0 8px #38BDF8;"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-energy" style="--flash-color: var(--magenta);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Energi</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,46,159,.12); color: var(--magenta);"><i data-lucide="battery" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-energy">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> kWh</span></p>
+      <div class="metric-bar mt-3"><span id="bar-energy" style="width:0%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta);"></span></div>
+    </div>
+  </div>
+
+  <!-- MINI CHARTS -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="zap" class="w-4 h-4" style="color: var(--cyan);"></i> Tren Tegangan (V)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-volt"></canvas></div>
+    </div>
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="activity" class="w-4 h-4" style="color: var(--violet);"></i> Tren Arus (mA)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-current"></canvas></div>
+    </div>
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="cpu" class="w-4 h-4" style="color: var(--mint);"></i> Tren Daya Aktif (W)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-power"></canvas></div>
+    </div>
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="thermometer" class="w-4 h-4" style="color: var(--amber);"></i> Tren Suhu (&deg;C)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-suhu"></canvas></div>
+    </div>
+  </div>
+
+  <!-- DATA LOGGER -->
+  <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white flex items-center gap-2">
+        <i data-lucide="history" class="w-4 h-4" style="color: var(--magenta);"></i> Data Logger
+      </h3>
+      <div class="flex items-center gap-2">
+        <button type="button" id="export-csv-btn" class="btn-neon px-4 py-2 rounded-xl font-display text-[11px] tracking-widest uppercase flex items-center gap-2" style="background: rgba(0,229,255,.1); color: var(--cyan); border: 1px solid rgba(0,229,255,.3);">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Ekspor CSV
+        </button>
+        <button type="button" id="delete-db-btn" class="btn-neon px-4 py-2 rounded-xl font-display text-[11px] tracking-widest uppercase flex items-center gap-2" style="background: rgba(255,59,92,.1); color: var(--danger); border: 1px solid rgba(255,59,92,.3);">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus Database
+        </button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+      <table class="term-table w-full text-sm">
+        <thead class="sticky top-0 bg-[#12121f] text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">
+          <tr>
+            <th class="text-left p-3">Waktu</th>
+            <th class="text-left p-3">Tegangan</th>
+            <th class="text-left p-3">Arus</th>
+            <th class="text-left p-3">Daya</th>
+            <th class="text-left p-3">Suhu</th>
+            <th class="text-left p-3">Energi</th>
+          </tr>
+        </thead>
+        <tbody id="log-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center justify-between mt-5 text-xs font-mono text-[color:var(--ink-dim)]">
+      <span id="pagination-info">Halaman 1 dari 1</span>
+      <div class="flex items-center gap-2">
+        <button type="button" id="prev-page-btn" class="btn-neon w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-black/30 disabled:opacity-30 disabled:cursor-not-allowed">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+        </button>
+        <button type="button" id="next-page-btn" class="btn-neon w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-black/30 disabled:opacity-30 disabled:cursor-not-allowed">
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="text-center text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] pt-4 pb-2 flex items-center justify-center gap-2">
+    <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+    <span>Data terakhir diterima: <span id="last-update" class="normal-case tracking-normal">-</span></span>
+  </footer>
+</div>
+
+<!-- TOAST -->
+<div id="toast-stack" class="toast-stack"></div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div id="confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="cyber-panel hud-corners rounded-2xl p-6 max-w-sm w-full">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style="background: rgba(255,59,92,.1); border: 1px solid rgba(255,59,92,.35);">
+      <i data-lucide="alert-triangle" class="w-6 h-6" style="color: var(--danger);"></i>
+    </div>
+    <h3 class="font-display text-white font-semibold mb-2">Hapus Seluruh Data?</h3>
+    <p class="text-sm text-[color:var(--ink-dim)] mb-6">Tindakan ini akan menghapus semua riwayat data logger secara permanen dan tidak dapat dibatalkan.</p>
+    <div class="flex gap-3">
+      <button type="button" id="confirm-cancel-btn" class="btn-neon flex-1 py-2.5 rounded-xl font-display text-xs tracking-widest uppercase border border-white/10 bg-black/30 text-white">Batal</button>
+      <button type="button" id="confirm-delete-btn" class="btn-neon flex-1 py-2.5 rounded-xl font-display text-xs tracking-widest uppercase" style="background: var(--danger); color: #050509;">Hapus</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: KONFIGURASI SISTEM -->
+<div id="config-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="cyber-panel hud-corners rounded-2xl p-6 max-w-sm w-full">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white flex items-center gap-2">
+        <i data-lucide="sliders-horizontal" class="w-4 h-4" style="color: var(--amber);"></i> Konfigurasi Sistem
+      </h3>
+      <button type="button" id="close-config-btn" aria-label="Tutup" style="color: var(--ink-dim);"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <p class="text-xs text-[color:var(--ink-dim)] mb-4">Menentukan ambang batas daya maksimum (Watt) perangkat — dipakai sebagai skala gauge kartu Daya Aktif.</p>
+    <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Batas Daya Maksimum (Watt)</label>
+    <input id="config-max-watt" type="number" min="0" class="cyber-input" value="2200" />
+    <button type="button" id="save-config-btn" class="btn-neon w-full mt-4 py-2.5 rounded-xl font-display text-xs tracking-widest uppercase flex items-center justify-center gap-2" style="background: rgba(255,176,32,.12); color: var(--amber); border: 1px solid rgba(255,176,32,.35);">
+      <i data-lucide="save" class="w-3.5 h-3.5"></i> Simpan Konfigurasi
+    </button>
+  </div>
+</div>
+
+<!-- MODAL: DEVICE MANAGEMENT -->
+<div id="devices-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="cyber-panel hud-corners rounded-2xl p-6 max-w-md w-full">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white flex items-center gap-2">
+        <i data-lucide="cpu" class="w-4 h-4" style="color: var(--cyan);"></i> Device Management
+      </h3>
+      <button type="button" id="close-devices-btn" aria-label="Tutup" style="color: var(--ink-dim);"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div id="devices-content" class="space-y-4 font-mono text-xs">
+      <p class="text-[color:var(--ink-dim)]">Memuat data perangkat...</p>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EVENT LOG -->
+<div id="events-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="cyber-panel hud-corners rounded-2xl p-6 max-w-lg w-full">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white flex items-center gap-2">
+        <i data-lucide="scroll-text" class="w-4 h-4" style="color: var(--violet);"></i> Log Aktivitas
+      </h3>
+      <button type="button" id="close-events-btn" aria-label="Tutup" style="color: var(--ink-dim);"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div id="events-content" class="space-y-2 font-mono text-xs max-h-96 overflow-y-auto">
+      <p class="text-[color:var(--ink-dim)]">Memuat log aktivitas...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   BACKGROUND SIRKUIT — logika visual non-React: canvas animasi
+   yang merepresentasikan aliran arus listrik antar-node (metafora
+   arus mengalir antar node). Sebelumnya effects.js, kini inline.
+   ========================================================= */
+(function () {
+  "use strict";
+
+  window.initCircuitBG = function initCircuitBG(canvas) {
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let w, h, nodes, pulses;
+
+    function resize() {
+      w = canvas.width = window.innerWidth;
+      h = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    function buildNodes() {
+      const count = Math.min(70, Math.max(24, Math.floor((w * h) / 42000)));
+      nodes = Array.from({ length: count }, () => ({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.12,
+        vy: (Math.random() - 0.5) * 0.12,
+      }));
+      pulses = [];
+    }
+    buildNodes();
+    window.addEventListener("resize", () => { buildNodes(); });
+
+    const COLORS = ["rgba(178,38,255,", "rgba(0,229,255,", "rgba(255,46,159,"];
+
+    function maybeSpawnPulse() {
+      if (Math.random() < 0.02 && nodes.length > 4) {
+        const a = nodes[Math.floor(Math.random() * nodes.length)];
+        const b = nodes[Math.floor(Math.random() * nodes.length)];
+        if (a !== b) {
+          pulses.push({ a, b, t: 0, color: COLORS[Math.floor(Math.random() * COLORS.length)] });
+        }
+      }
+    }
+
+    function frame() {
+      ctx.clearRect(0, 0, w, h);
+
+      nodes.forEach((n) => {
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0 || n.x > w) n.vx *= -1;
+        if (n.y < 0 || n.y > h) n.vy *= -1;
+      });
+
+      const maxDist = Math.min(180, w / 6);
+      ctx.lineWidth = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < maxDist) {
+            const alpha = (1 - dist / maxDist) * 0.12;
+            ctx.strokeStyle = `rgba(178,38,255,${alpha})`;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      nodes.forEach((n) => {
+        ctx.fillStyle = "rgba(0,229,255,0.35)";
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      maybeSpawnPulse();
+      pulses.forEach((p) => { p.t += 0.02; });
+      pulses = pulses.filter((p) => p.t <= 1);
+      pulses.forEach((p) => {
+        const x = p.a.x + (p.b.x - p.a.x) * p.t;
+        const y = p.a.y + (p.b.y - p.a.y) * p.t;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, 5);
+        grad.addColorStop(0, p.color + "0.9)");
+        grad.addColorStop(1, p.color + "0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  };
+
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add("is-visible"); revealObserver.unobserve(e.target); }
+      });
+    },
+    { threshold: 0.15 }
+  );
+  window.registerReveal = (el) => el && revealObserver.observe(el);
+})();
+</script>
+<script>
+(function () {
+  const PAGE_SIZE = 10;
+  const MAX_CHART_POINTS = 100;
+  const BACKEND_URL = 'http://127.0.0.1:5000';
+  // Konfigurasi broker MQTT tetap (mengikuti firmware ESP32 asli) — tidak lagi
+  // diisi manual lewat form, cukup login lewat Back-End lalu auto-connect.
+  const MQTT_CONFIG = {
+    brokerUrl: '1cd3ab6781ef422ab1c92882949b0e99.s1.eu.hivemq.cloud:8884/mqtt',
+    username: 'kelompok2',
+    password: 'Kelompok2',
+    clientId: 'Dashboard_Kelompok2_' + Math.floor(Math.random() * 100000),
+    topic: 'itpln/kelompok2/sensor',
+    topicControl: 'itpln/kelompok2/control',
+  };
+  let currentOperator = '';
+  const MAX_VALUES = { volt: 250, current: 2000, power: 2200, suhu: 100, kelembapan: 100, energy: 10, biaya: 50000 };
+  const TARIF_PER_KWH = 1444;
+
+  const METRICS = [
+    { key: 'volt', color: '#00E5FF' },
+    { key: 'current', color: '#B026FF' },
+    { key: 'power', color: '#39FF88' },
+    { key: 'suhu', color: '#FFB020' },
+  ];
+
+  let db = null;
+  let mqttClient = null;
+  let logs = [];
+  let currentPage = 1;
+  const charts = {};
+  const lastValues = { volt: 0, current: 0, power: 0, suhu: 0, kelembapan: 0, energy: 0, biaya: 0 };
+  let isDemo = false;
+  let demoTimer = null;
+  let currentTopic = '';
+  let currentControlTopic = '';
+  const demoState = { t: 0, energy: 12.4 };
+  const actuatorState = { relay1: false, buzzer: false };
+
+  function generateDemoData() {
+    demoState.t += 0.15;
+    const baseLoad = actuatorState.relay1 ? 85 : 45;
+    const buzzLoad = actuatorState.buzzer ? 6 : 0;
+    const wave = Math.sin(demoState.t) * 10;
+    const noise = (Math.random() - 0.5) * 6;
+    const power = Math.max(1.5, baseLoad + buzzLoad + wave + noise);
+    const volt = 218 + Math.sin(demoState.t * 0.6) * 3 + (Math.random() - 0.5) * 1.2;
+    const current = (power / volt) * 1000;
+    const suhu = 27 + (power / 110) * 15 + Math.sin(demoState.t * 0.2) * 1.1 + (Math.random() - 0.5) * 0.5;
+    const kelembapan = 60 + Math.sin(demoState.t * 0.15) * 5 + (Math.random() - 0.5) * 2;
+    demoState.energy += (power / 1000) * (2 / 3600);
+    return { volt, current, power, suhu, kelembapan, energy: demoState.energy };
+  }
+
+  // ---------- Command Array (kontrol aktuator) ----------
+  function setToggleUI(actuator, on) {
+    const btn = $('toggle-' + actuator);
+    const statusEl = $(actuator + '-status');
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    btn.className = 'cyber-toggle ' + (on ? 'on' : 'off armed');
+    statusEl.textContent = on ? 'AKTIF' : 'NONAKTIF';
+    statusEl.style.color = on ? 'var(--mint)' : 'var(--ink-dim)';
+  }
+  function resetActuators() {
+    actuatorState.relay1 = false;
+    actuatorState.buzzer = false;
+    setToggleUI('relay1', false);
+    setToggleUI('buzzer', false);
+    $('alarm-banner').classList.add('hidden');
+    $('toggle-relay1').disabled = false;
+    $('toggle-relay1').classList.remove('opacity-50', 'cursor-not-allowed');
+  }
+  function toggleActuator(actuator) {
+    const next = !actuatorState[actuator];
+    const label = actuator === 'relay1' ? 'Relay Lampu' : 'Buzzer Alarm';
+    const command = next ? 'ON' : 'OFF';
+
+    if (isDemo) {
+      actuatorState[actuator] = next;
+      setToggleUI(actuator, next);
+      pushToast('success', `${label} → ${command} (simulasi)`);
+      return;
+    }
+    if (!mqttClient || !mqttClient.isConnected()) {
+      pushToast('error', 'Tidak terhubung ke broker MQTT.');
+      return;
+    }
+    actuatorState[actuator] = next;
+    setToggleUI(actuator, next); // optimistic
+    try {
+      const msg = new Paho.Message(JSON.stringify({ [actuator]: command }));
+      msg.destinationName = currentControlTopic;
+      msg.qos = 1;
+      mqttClient.send(msg);
+      pushToast('success', `${label} → ${command}`);
+    } catch (err) {
+      actuatorState[actuator] = !next;
+      setToggleUI(actuator, !next); // revert kalau gagal
+      pushToast('error', `Gagal mengirim perintah ${label}: ` + err.message);
+    }
+  }
+
+  // ---------- Sinkronisasi status asli dari device (relay/buzzer/alarm) ----------
+  const ALARM_REASON_TEXT = {
+    OVERHEAT: 'Suhu Berlebih (Overheat)',
+    OVERCURRENT: 'Arus Berlebih (Overcurrent)',
+  };
+  function syncDeviceStatus(rawData) {
+    if (rawData.relay1_status !== undefined) {
+      const on = rawData.relay1_status === 'ON';
+      actuatorState.relay1 = on;
+      setToggleUI('relay1', on);
+    }
+    if (rawData.buzzer_status !== undefined) {
+      const on = rawData.buzzer_status === 'ON';
+      actuatorState.buzzer = on;
+      setToggleUI('buzzer', on);
+    }
+
+    const alarmOn = rawData.alarm === true || rawData.alarm === 'true';
+    const banner = $('alarm-banner');
+    const relayBtn = $('toggle-relay1');
+    const buzzerBtn = $('toggle-buzzer');
+    if (alarmOn) {
+      const reason = ALARM_REASON_TEXT[rawData.alarm_reason] || 'Kondisi Tidak Aman';
+      $('alarm-banner-text').textContent = `PERINGATAN: ${reason} — Relay diputus otomatis oleh sistem proteksi.`;
+      banner.classList.remove('hidden');
+      relayBtn.disabled = true;
+      relayBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+      banner.classList.add('hidden');
+      relayBtn.disabled = false;
+      relayBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt2 = (v) => (Number(v) || 0).toFixed(2);
+  const fmtRupiah = (v) => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+  const formatDateTime = (d) =>
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+
+  $('toggle-relay1').addEventListener('click', () => toggleActuator('relay1'));
+  $('toggle-buzzer').addEventListener('click', () => toggleActuator('buzzer'));
+
+  // ---------- Toast ----------
+  function pushToast(type, msg) {
+    const styles = {
+      success: { color: 'var(--mint)', icon: 'check' },
+      error: { color: 'var(--danger)', icon: 'alert-triangle' },
+      info: { color: 'var(--cyan)', icon: 'alert-triangle' },
+    };
+    const s = styles[type] || styles.info;
+    const el = document.createElement('div');
+    el.className = 'toast-item cyber-panel px-4 py-3 rounded-xl flex items-center gap-3 min-w-[240px]';
+    el.style.color = s.color;
+    el.innerHTML = `<i data-lucide="${s.icon}" class="w-4 h-4 shrink-0"></i><span class="text-sm font-body text-[color:var(--ink)]">${msg}</span>`;
+    $('toast-stack').appendChild(el);
+    lucide.createIcons();
+    setTimeout(() => el.remove(), 3200);
+  }
+
+  // ---------- Jam realtime ----------
+  function tickClock() { $('clock-display').textContent = formatDateTime(new Date()); }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  // ---------- IndexedDB (persistensi datalogger) ----------
+  const LIVE_DB_NAME = 'PowermeterLoggerDB';
+  const DEMO_DB_NAME = 'PowermeterLoggerDB_Demo';
+  const STORE = 'logs';
+  function switchDatabase(name) {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(name, 1);
+      req.onupgradeneeded = (e) => {
+        const idb = e.target.result;
+        if (!idb.objectStoreNames.contains(STORE)) {
+          idb.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+  async function reloadLogsFromDb() {
+    logs = (await getAllLogs()).sort((a, b) => b.ts - a.ts);
+    currentPage = 1;
+    renderTable();
+  }
+  function addLog(entry) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).add(entry);
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  }
+  function getAllLogs() {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+  function clearLogs() {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  // ---------- Grafik mini realtime ----------
+  function initCharts() {
+    METRICS.forEach((m) => {
+      const ctx = $('chart-' + m.key).getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+      gradient.addColorStop(0, m.color + 'B3');
+      gradient.addColorStop(1, m.color + '00');
+      charts[m.key] = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ data: [], borderColor: m.color, borderWidth: 3, pointRadius: (c) => (c.dataset.data.length > 30 ? 0 : 4), pointHoverRadius: 6, pointBackgroundColor: '#00E5FF', pointBorderColor: '#00E5FF', tension: .4, fill: true, backgroundColor: gradient }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 300 },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8b8aa8', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 } },
+            y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8b8aa8', font: { family: 'JetBrains Mono', size: 10 } } },
+          },
+        },
+      });
+    });
+  }
+  function pushChartPoint(key, value, label) {
+    const c = charts[key];
+    if (!c) return;
+    c.data.labels.push(label);
+    c.data.datasets[0].data.push(value);
+    if (c.data.labels.length > MAX_CHART_POINTS) {
+      c.data.labels.shift();
+      c.data.datasets[0].data.shift();
+    }
+    c.update('none');
+  }
+
+  // ---------- Kartu metrik (angka animasi count-up + flash + progress) ----------
+  function flashCard(key) {
+    const el = $('card-' + key);
+    if (!el) return;
+    el.classList.remove('flash-update');
+    void el.offsetWidth;
+    el.classList.add('flash-update');
+  }
+  function animateValue(key, from, to, duration = 500, currency = false) {
+    const span = $('val-' + key);
+    if (!span) return;
+    const start = performance.now();
+    function step(now) {
+      const p = Math.min(1, (now - start) / duration);
+      const v = from + (to - from) * p;
+      span.textContent = currency ? fmtRupiah(v) : fmt2(v);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  function updateCards(data) {
+    ['volt', 'current', 'power', 'suhu', 'kelembapan', 'energy'].forEach((key) => {
+      const target = Number(data[key]) || 0;
+      animateValue(key, lastValues[key], target);
+      const max = MAX_VALUES[key];
+      const pct = Math.min(100, Math.max(0, (target / max) * 100 || 0));
+      const bar = $('bar-' + key);
+      if (bar) bar.style.width = pct + '%';
+      lastValues[key] = target;
+      flashCard(key);
+    });
+    const biaya = (Number(data.energy) || 0) * TARIF_PER_KWH;
+    animateValue('biaya', lastValues.biaya, biaya, 500, true);
+    const biayaPct = Math.min(100, Math.max(0, (biaya / MAX_VALUES.biaya) * 100 || 0));
+    const biayaBar = $('bar-biaya');
+    if (biayaBar) biayaBar.style.width = biayaPct + '%';
+    lastValues.biaya = biaya;
+    flashCard('biaya');
+
+    const R = 40, C = 2 * Math.PI * R;
+    const powerPct = Math.min(100, Math.max(0, (Number(data.power) / MAX_VALUES.power) * 100 || 0));
+    $('gauge-power').setAttribute('stroke-dashoffset', C - (powerPct / 100) * C);
+    $('gauge-power-pct').textContent = powerPct.toFixed(0) + '%';
+  }
+
+  // ---------- Tabel & paginasi ----------
+  function renderTable() {
+    const body = $('log-table-body');
+    const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = logs.slice(start, start + PAGE_SIZE);
+    body.innerHTML = '';
+    if (pageRows.length === 0) {
+      body.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-[color:var(--ink-dim)] font-mono text-xs">Belum ada data tersimpan.</td></tr>`;
+    } else {
+      pageRows.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.className = 'row-in';
+        tr.innerHTML = `
+          <td class="p-3 text-[color:var(--ink-dim)] font-mono text-xs">${formatDateTime(new Date(row.ts))}</td>
+          <td class="p-3 font-mono" style="color: var(--cyan);">${fmt2(row.volt)} V</td>
+          <td class="p-3 font-mono" style="color: var(--violet);">${fmt2(row.current)} mA</td>
+          <td class="p-3 font-mono" style="color: var(--mint);">${fmt2(row.power)} W</td>
+          <td class="p-3 font-mono" style="color: var(--amber);">${fmt2(row.suhu)} &deg;C</td>
+          <td class="p-3 font-mono" style="color: var(--magenta);">${fmt2(row.energy)} kWh</td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+    $('pagination-info').textContent = `Halaman ${currentPage} dari ${totalPages} (${logs.length} data)`;
+    $('prev-page-btn').disabled = currentPage <= 1;
+    $('next-page-btn').disabled = currentPage >= totalPages;
+  }
+  $('prev-page-btn').addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(); } });
+  $('next-page-btn').addEventListener('click', () => {
+    const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+    if (currentPage < totalPages) { currentPage++; renderTable(); }
+  });
+
+  // ---------- Ekspor CSV ----------
+  $('export-csv-btn').addEventListener('click', () => {
+    const header = ['Waktu', 'Tegangan (V)', 'Arus (mA)', 'Daya Aktif (W)', 'Suhu (C)', 'Energi (kWh)'];
+    const rows = logs.map((r) => [formatDateTime(new Date(r.ts)), fmt2(r.volt), fmt2(r.current), fmt2(r.power), fmt2(r.suhu), fmt2(r.energy)]);
+    const csv = [header, ...rows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `datalogger_powermeter_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    pushToast('success', 'Data logger berhasil diekspor ke CSV.');
+  });
+
+  // ---------- Hapus database ----------
+  $('delete-db-btn').addEventListener('click', () => $('confirm-modal').classList.remove('hidden'));
+  $('confirm-cancel-btn').addEventListener('click', () => $('confirm-modal').classList.add('hidden'));
+  $('confirm-delete-btn').addEventListener('click', async () => {
+    await clearLogs();
+    logs = [];
+    currentPage = 1;
+    renderTable();
+    $('confirm-modal').classList.add('hidden');
+    pushToast('success', 'Seluruh data logger berhasil dihapus.');
+  });
+
+  // ---------- Validasi form auth ----------
+  const FIELD_IDS = ['f-username', 'f-password'];
+  function validateForm() {
+    const allFilled = FIELD_IDS.every((id) => $(id).value.trim() !== '');
+    $('connect-btn').disabled = !allFilled;
+  }
+  FIELD_IDS.forEach((id) => $(id).addEventListener('input', validateForm));
+
+  $('toggle-password-btn').addEventListener('click', () => {
+    const input = $('f-password');
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+    $('toggle-password-btn').innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
+    lucide.createIcons();
+  });
+
+  function parseBrokerUrl(raw) {
+    let s = raw.trim().replace(/^wss?:\/\//i, '').replace(/^https?:\/\//i, '');
+    let path = '/mqtt';
+    const slashIdx = s.indexOf('/');
+    if (slashIdx !== -1) { path = s.slice(slashIdx); s = s.slice(0, slashIdx); }
+    const colonIdx = s.indexOf(':');
+    const host = colonIdx !== -1 ? s.slice(0, colonIdx) : s;
+    return { host, path };
+  }
+
+  function showAuthError(msg) {
+    $('auth-error-text').textContent = msg;
+    $('auth-error').classList.remove('hidden');
+  }
+  function hideAuthError() { $('auth-error').classList.add('hidden'); }
+
+  function setConnectingState(isConnecting) {
+    const btn = $('connect-btn');
+    btn.disabled = isConnecting;
+    btn.innerHTML = isConnecting
+      ? `<span class="spinner"></span><span>Memproses...</span>`
+      : `<i data-lucide="log-in" class="w-4 h-4"></i><span>Masuk</span>`;
+    lucide.createIcons();
+  }
+
+  function setStatus(isOnline) {
+    const dot = $('status-dot');
+    const text = $('status-text');
+    if (isOnline) {
+      dot.style.background = 'var(--mint)'; dot.style.color = 'var(--mint)';
+      text.textContent = 'ONLINE'; text.style.color = 'var(--mint)';
+    } else {
+      dot.style.background = 'var(--danger)'; dot.style.color = 'var(--danger)';
+      text.textContent = 'TERPUTUS'; text.style.color = 'var(--danger)';
+    }
+  }
+
+  // ---------- Status perangkat ESP32 asli (bukan cuma koneksi browser↔broker) ----------
+  let deviceStatusTimer = null;
+  function setDeviceStatus(isOnline) {
+    const dot = $('device-status-dot');
+    const text = $('device-status-text');
+    if (isOnline) {
+      dot.style.background = 'var(--mint)'; dot.style.color = 'var(--mint)';
+      text.textContent = 'ONLINE'; text.style.color = 'var(--mint)';
+    } else {
+      dot.style.background = 'var(--danger)'; dot.style.color = 'var(--danger)';
+      text.textContent = 'OFFLINE'; text.style.color = 'var(--danger)';
+    }
+  }
+  async function pollDeviceStatus() {
+    if (isDemo) { setDeviceStatus(true); return; } // mode demo dianggap alat selalu "online" (simulasi)
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/devices`);
+      const list = await res.json();
+      setDeviceStatus(Array.isArray(list) && list.length > 0 && list[0].is_online);
+    } catch (err) {
+      setDeviceStatus(false); // Back-End tidak terjangkau = tidak bisa pastikan alat online
+    }
+  }
+  function startDeviceStatusPolling() {
+    stopDeviceStatusPolling();
+    pollDeviceStatus();
+    deviceStatusTimer = setInterval(pollDeviceStatus, 5000);
+  }
+  function stopDeviceStatusPolling() {
+    if (deviceStatusTimer) clearInterval(deviceStatusTimer);
+    deviceStatusTimer = null;
+    setDeviceStatus(false);
+  }
+
+  function showDashboard() {
+    $('auth-section').classList.add('hidden');
+    $('dashboard-section').classList.remove('hidden');
+    document.querySelectorAll('.reveal').forEach((el) => window.registerReveal && window.registerReveal(el));
+    startDeviceStatusPolling();
+  }
+  function showAuthForm() {
+    $('dashboard-section').classList.add('hidden');
+    $('auth-section').classList.remove('hidden');
+    $('operator-label').textContent = '';
+    currentOperator = '';
+    setConnectingState(false);
+    validateForm();
+    stopDeviceStatusPolling();
+  }
+
+  // ---------- Data masuk (dipakai bareng oleh MQTT asli & mode demo) ----------
+  function processIncomingData(rawData) {
+    // Firmware ESP32 kirim field: volt, ampere, watt, kwh, suhu, kelembapan —
+    // dengan fallback ke nama alternatif kalau suatu saat firmware diganti.
+    // Catatan: PZEM kirim "ampere" dalam satuan Ampere, dashboard tampilkan
+    // Arus dalam mA, jadi perlu dikali 1000 kalau field "ampere" yang datang.
+    const current = rawData.ampere !== undefined ? Number(rawData.ampere) * 1000 : Number(rawData.current) || 0;
+    const data = {
+      volt: Number(rawData.volt) || 0,
+      current: current || 0,
+      power: Number(rawData.watt ?? rawData.power) || 0,
+      suhu: Number(rawData.suhu ?? rawData.temperature) || 0,
+      kelembapan: Number(rawData.kelembapan ?? rawData.humidity) || 0,
+      energy: Number(rawData.kwh ?? rawData.energy) || 0,
+    };
+    updateCards(data);
+    syncDeviceStatus(rawData);
+    const now = new Date();
+    const label = formatDateTime(now).split(', ')[0];
+    METRICS.forEach((m) => pushChartPoint(m.key, data[m.key], label));
+    const entry = { ...data, ts: now.getTime() };
+    addLog(entry).then(() => {
+      logs.unshift(entry);
+      renderTable();
+    });
+    $('last-update').textContent = formatDateTime(now);
+  }
+
+  // ---------- MQTT (Paho) ----------
+  function onMessageArrived(message) {
+    let payload;
+    try { payload = JSON.parse(message.payloadString); } catch (e) { return; }
+    if (payload.volt !== undefined) {
+      processIncomingData(payload); // telemetri lengkap
+    } else {
+      syncDeviceStatus(payload); // event status-only (relay/buzzer/alarm berubah), jangan sentuh kartu angka & log
+    }
+  }
+
+  function onConnectionLost(responseObject) {
+    setStatus(false);
+    pushToast('error', 'Koneksi terputus: ' + (responseObject.errorMessage || 'tidak diketahui.'));
+    showAuthError('Koneksi terputus: ' + (responseObject.errorMessage || 'tidak diketahui.'));
+    showAuthForm();
+  }
+
+  function connectMqttAfterLogin() {
+    const { host, path } = parseBrokerUrl(MQTT_CONFIG.brokerUrl);
+    try {
+      mqttClient = new Paho.Client(host, 8884, path, MQTT_CONFIG.clientId);
+      mqttClient.onConnectionLost = onConnectionLost;
+      mqttClient.onMessageArrived = onMessageArrived;
+      mqttClient.connect({
+        userName: MQTT_CONFIG.username,
+        password: MQTT_CONFIG.password,
+        useSSL: true,
+        timeout: 10,
+        cleanSession: true,
+        onSuccess: () => {
+          mqttClient.subscribe(MQTT_CONFIG.topic);
+          currentTopic = MQTT_CONFIG.topic;
+          currentControlTopic = MQTT_CONFIG.topicControl;
+          resetActuators();
+          setStatus(true);
+          setConnectingState(false);
+          $('operator-label').textContent = '· operator ' + currentOperator;
+          showDashboard();
+          pushToast('success', 'Login berhasil, tersambung ke broker MQTT.');
+        },
+        onFailure: (err) => {
+          setConnectingState(false);
+          setStatus(false);
+          showAuthError('Login berhasil, tapi gagal terhubung ke broker MQTT: ' + (err.errorMessage || 'tidak diketahui.'));
+        },
+      });
+    } catch (err) {
+      setConnectingState(false);
+      showAuthError('Konfigurasi broker tidak valid: ' + err.message);
+    }
+  }
+
+  $('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAuthError();
+    const username = $('f-username').value.trim();
+    const password = $('f-password').value;
+
+    setConnectingState(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (data.status !== 'SUCCESS') {
+        setConnectingState(false);
+        showAuthError(data.message || 'Username atau password salah.');
+        return;
+      }
+      currentOperator = username;
+      connectMqttAfterLogin();
+    } catch (err) {
+      setConnectingState(false);
+      showAuthError('Back-End tidak dapat dihubungi. Pastikan server.py sedang berjalan, atau coba Mode Demo di bawah.');
+    }
+  });
+
+  // ---------- Halaman Konfigurasi Sistem ----------
+  $('open-config-btn').addEventListener('click', async () => {
+    $('config-modal').classList.remove('hidden');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/device/config`);
+      const data = await res.json();
+      $('config-max-watt').value = data.max_watt ?? 2200;
+    } catch (err) {
+      pushToast('error', 'Gagal memuat konfigurasi — Back-End tidak dapat dihubungi.');
+    }
+  });
+  $('close-config-btn').addEventListener('click', () => $('config-modal').classList.add('hidden'));
+  $('save-config-btn').addEventListener('click', async () => {
+    const maxWatt = Number($('config-max-watt').value) || 2200;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/device/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_watt: maxWatt }),
+      });
+      const data = await res.json();
+      if (data.status === 'SUCCESS') {
+        MAX_VALUES.power = maxWatt;
+        $('power-max-label').textContent = '/ ' + maxWatt + 'W';
+        pushToast('success', data.message || 'Konfigurasi tersimpan.');
+        $('config-modal').classList.add('hidden');
+      } else {
+        pushToast('error', data.message || 'Gagal menyimpan konfigurasi.');
+      }
+    } catch (err) {
+      pushToast('error', 'Back-End tidak dapat dihubungi.');
+    }
+  });
+
+  // ---------- Device Management ----------
+  $('open-devices-btn').addEventListener('click', async () => {
+    $('devices-modal').classList.remove('hidden');
+    $('devices-content').innerHTML = '<p class="text-[color:var(--ink-dim)]">Memuat data perangkat...</p>';
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/devices`);
+      const list = await res.json();
+      if (!Array.isArray(list) || list.length === 0) {
+        $('devices-content').innerHTML = '<p class="text-[color:var(--ink-dim)]">Belum ada perangkat terdaftar.</p>';
+        return;
+      }
+      const d = list[0];
+      $('devices-content').innerHTML = `
+        <div class="flex items-center gap-2 mb-4">
+          <span class="w-2.5 h-2.5 rounded-full" style="background: ${d.is_online ? 'var(--mint)' : 'var(--danger)'}"></span>
+          <span style="color: ${d.is_online ? 'var(--mint)' : 'var(--danger)'}">${d.is_online ? 'ONLINE' : 'OFFLINE'}</span>
+          <span class="text-[color:var(--ink-dim)]">&middot; terakhir terlihat: ${d.last_seen || '-'}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-black/25 rounded-lg p-3"><p class="text-[color:var(--ink-dim)] mb-1">Relay</p><p style="color:${d.relay1_status === 'ON' ? 'var(--mint)' : 'var(--ink-dim)'}">${d.relay1_status}</p></div>
+          <div class="bg-black/25 rounded-lg p-3"><p class="text-[color:var(--ink-dim)] mb-1">Buzzer</p><p style="color:${d.buzzer_status === 'ON' ? 'var(--mint)' : 'var(--ink-dim)'}">${d.buzzer_status}</p></div>
+          <div class="bg-black/25 rounded-lg p-3"><p class="text-[color:var(--ink-dim)] mb-1">Alarm</p><p style="color:${d.alarm_status ? 'var(--danger)' : 'var(--ink-dim)'}">${d.alarm_status ? d.alarm_reason : 'Normal'}</p></div>
+          <div class="bg-black/25 rounded-lg p-3"><p class="text-[color:var(--ink-dim)] mb-1">Batas Daya</p><p>${d.batas_daya_watt} W</p></div>
+        </div>
+        <label class="text-[11px] uppercase tracking-widest text-[color:var(--ink-dim)] mb-1 block">Nama Perangkat</label>
+        <input id="device-nama" type="text" class="cyber-input mb-3" value="${d.nama_perangkat}" />
+        <label class="text-[11px] uppercase tracking-widest text-[color:var(--ink-dim)] mb-1 block">Lokasi</label>
+        <input id="device-lokasi" type="text" class="cyber-input mb-4" value="${d.lokasi}" />
+        <button type="button" id="save-device-btn" class="btn-neon w-full py-2.5 rounded-xl uppercase tracking-widest flex items-center justify-center gap-2" style="background: rgba(0,229,255,.12); color: var(--cyan); border: 1px solid rgba(0,229,255,.35);">
+          <i data-lucide="save" class="w-3.5 h-3.5"></i> Simpan Info Perangkat
+        </button>
+      `;
+      lucide.createIcons();
+      $('save-device-btn').addEventListener('click', async () => {
+        try {
+          const res2 = await fetch(`${BACKEND_URL}/api/devices/${encodeURIComponent(d.device_id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nama_perangkat: $('device-nama').value, lokasi: $('device-lokasi').value }),
+          });
+          const data2 = await res2.json();
+          if (data2.status === 'SUCCESS') {
+            pushToast('success', data2.message);
+            $('devices-modal').classList.add('hidden');
+          } else {
+            pushToast('error', data2.message || 'Gagal menyimpan.');
+          }
+        } catch (err) {
+          pushToast('error', 'Back-End tidak dapat dihubungi.');
+        }
+      });
+    } catch (err) {
+      $('devices-content').innerHTML = '<p style="color:var(--danger)">Gagal memuat data — Back-End tidak dapat dihubungi.</p>';
+    }
+  });
+  $('close-devices-btn').addEventListener('click', () => $('devices-modal').classList.add('hidden'));
+
+  // ---------- Event Log ----------
+  $('open-events-btn').addEventListener('click', async () => {
+    $('events-modal').classList.remove('hidden');
+    $('events-content').innerHTML = '<p class="text-[color:var(--ink-dim)]">Memuat log aktivitas...</p>';
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/events`);
+      const list = await res.json();
+      if (!Array.isArray(list) || list.length === 0) {
+        $('events-content').innerHTML = '<p class="text-[color:var(--ink-dim)]">Belum ada log aktivitas.</p>';
+        return;
+      }
+      $('events-content').innerHTML = list.map((ev) => `
+        <div class="flex items-start justify-between gap-3 border-b border-white/5 pb-2">
+          <div>
+            <p class="text-white">${ev.aktivitas}</p>
+            <p class="text-[color:var(--ink-dim)]">${ev.keterangan}</p>
+          </div>
+          <span class="text-[color:var(--ink-dim)] shrink-0 whitespace-nowrap">${ev.created_at}</span>
+        </div>
+      `).join('');
+    } catch (err) {
+      $('events-content').innerHTML = '<p style="color:var(--danger)">Gagal memuat log — Back-End tidak dapat dihubungi.</p>';
+    }
+  });
+  $('close-events-btn').addEventListener('click', () => $('events-modal').classList.add('hidden'));
+
+  $('demo-btn').addEventListener('click', async () => {
+    hideAuthError();
+    isDemo = true;
+    demoState.t = 0;
+    demoState.energy = 12.4;
+    await switchDatabase(DEMO_DB_NAME);
+    await reloadLogsFromDb();
+    resetActuators();
+    setStatus(true);
+    showDashboard();
+    $('demo-badge').classList.remove('hidden');
+    pushToast('success', 'Mode demo aktif — data simulasi lokal.');
+    processIncomingData(generateDemoData());
+    demoTimer = setInterval(() => processIncomingData(generateDemoData()), 2000);
+  });
+
+  $('disconnect-btn').addEventListener('click', async () => {
+    if (isDemo) {
+      if (demoTimer) clearInterval(demoTimer);
+      demoTimer = null;
+      isDemo = false;
+      $('demo-badge').classList.add('hidden');
+      await switchDatabase(LIVE_DB_NAME);
+      await reloadLogsFromDb();
+      pushToast('info', 'Mode demo dihentikan.');
+    } else {
+      if (mqttClient && mqttClient.isConnected()) mqttClient.disconnect();
+      pushToast('info', 'Terputus dari broker MQTT.');
+    }
+    resetActuators();
+    setStatus(false);
+    showAuthForm();
+  });
+
+  // ---------- Inisialisasi ----------
+  async function init() {
+    lucide.createIcons();
+    if (window.initCircuitBG) window.initCircuitBG($('circuit-bg'));
+    initCharts();
+    await switchDatabase(LIVE_DB_NAME);
+    await reloadLogsFromDb();
+    validateForm();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
