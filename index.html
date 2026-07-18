@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard Monitoring Powermeter — Plant 1 Jawa Timur</title>
+<meta name="description" content="Dashboard monitoring powermeter realtime via MQTT SSL/TLS: tegangan, arus, daya aktif, frekuensi, dan energi." />
+<meta name="theme-color" content="#07070f" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+
+<link rel="stylesheet" href="style.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307070f'/%3E%3Cpath d='M17 6 8 18h6l-1 8 9-12h-6l1-8Z' fill='%23B026FF'/%3E%3C/svg%3E" />
+
+<style>
+  .gauge-mini{ width:64px; height:64px; }
+</style>
+</head>
+<body>
+
+<canvas id="circuit-bg" aria-hidden="true"></canvas>
+<div class="void-vignette" aria-hidden="true"></div>
+<div class="grid-static" aria-hidden="true"></div>
+<div class="scanline-overlay" aria-hidden="true"></div>
+<div class="scan-sweep" aria-hidden="true"></div>
+
+<!-- AUTH FORM -->
+<div id="auth-section" class="auth-shell relative z-10">
+  <div class="auth-card cyber-panel hud-corners rounded-2xl p-8">
+    <div class="text-center mb-7">
+      <div class="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4" style="background: rgba(178,38,255,.12); border: 1px solid rgba(178,38,255,.35);">
+        <i data-lucide="gauge" class="w-7 h-7" style="color: var(--violet);"></i>
+      </div>
+      <h1 class="glitch font-display text-xl font-semibold tracking-wide text-white" data-text="DASHBOARD MONITORING POWERMETER">DASHBOARD MONITORING POWERMETER</h1>
+      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-2 uppercase tracking-widest">Plant 1 &ndash; Jawa Timur</p>
+      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-3 uppercase tracking-widest">Autentikasi Broker MQTT (SSL/TLS)</p>
+    </div>
+
+    <form id="auth-form" class="space-y-4">
+      <div>
+        <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Broker URL</label>
+        <div class="relative">
+          <i data-lucide="server" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+          <input id="f-broker" type="text" class="cyber-input pl-10" required value="8bba1c43068748e98464080da69ed5ef.s1.eu.hivemq.cloud:8884/mqtt" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Port</label>
+          <div class="relative">
+            <i data-lucide="plug" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+            <input id="f-port" type="number" class="cyber-input pl-10" required value="8884" />
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Client ID</label>
+          <div class="relative">
+            <i data-lucide="hash" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+            <input id="f-clientid" type="text" class="cyber-input pl-10" required value="Powermeter" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Username</label>
+        <div class="relative">
+          <i data-lucide="user" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+          <input id="f-username" type="text" class="cyber-input pl-10" required value="developer" />
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Password</label>
+        <div class="relative">
+          <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+          <input id="f-password" type="password" class="cyber-input pl-10 pr-10" required value="Developer123456" />
+          <button type="button" id="toggle-password-btn" class="absolute right-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);" aria-label="Tampilkan password">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Topic</label>
+        <div class="relative">
+          <i data-lucide="radio" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+          <input id="f-topic" type="text" class="cyber-input pl-10" required value="industri/panel1" />
+        </div>
+      </div>
+
+      <div id="auth-error" class="auth-error hidden flex items-start gap-2">
+        <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5"></i>
+        <span id="auth-error-text"></span>
+      </div>
+
+      <button id="connect-btn" type="submit" class="btn-primary-cyber btn-neon w-full py-3 rounded-xl font-display text-sm tracking-wide uppercase flex items-center justify-center gap-2 disabled:opacity-60">
+        <i data-lucide="wifi" class="w-4 h-4"></i>
+        <span>Hubungkan ke Broker</span>
+      </button>
+    </form>
+
+    <div class="divider-line my-6">atau</div>
+
+    <button type="button" id="demo-btn" class="btn-neon w-full py-3 rounded-xl font-display text-sm tracking-wide uppercase flex items-center justify-center gap-2 border" style="color: var(--amber); border-color: rgba(255,176,32,.35); background: rgba(255,176,32,.08);">
+      <i data-lucide="flask-conical" class="w-4 h-4"></i> Coba Mode Demo (Tanpa Broker)
+    </button>
+    <p class="text-[11px] text-center text-[color:var(--ink-dim)] mt-3 font-mono leading-relaxed">
+      Mode demo memakai data simulasi lokal &mdash; tidak memerlukan broker MQTT sungguhan.
+    </p>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard-section" class="hidden relative z-10 max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+
+  <header class="cyber-panel hud-corners rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+    <div>
+      <div class="flex items-center gap-3 flex-wrap">
+        <h1 class="glitch font-display text-2xl md:text-3xl font-semibold tracking-wide text-white" data-text="DASHBOARD MONITORING POWERMETER">DASHBOARD MONITORING POWERMETER</h1>
+        <span id="demo-badge" class="demo-badge hidden text-[10px] font-mono uppercase tracking-widest px-2.5 py-1 rounded-full flex items-center gap-1.5">
+          <i data-lucide="flask-conical" class="w-3 h-3"></i> Mode Demo &middot; Data Simulasi
+        </span>
+      </div>
+      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-1 uppercase tracking-widest">Plant 1 &ndash; Jawa Timur</p>
+      <div class="mt-2 flex items-center gap-2 text-xs font-mono uppercase tracking-widest flex-wrap">
+        <span id="status-dot" class="radar-dot inline-block w-2 h-2 rounded-full" style="background: var(--danger); color: var(--danger);"></span>
+        <span id="status-text" style="color: var(--danger);">TERPUTUS</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 bg-black/30 px-5 py-2.5 rounded-xl border border-white/10">
+        <i data-lucide="clock" class="w-4 h-4"></i>
+        <span id="clock-display" class="font-mono text-sm" style="color: var(--cyan);">--:--:--, --/--/----</span>
+      </div>
+      <button type="button" id="disconnect-btn" aria-label="Disconnect" class="btn-neon w-10 h-10 flex items-center justify-center rounded-xl border border-white/10 bg-black/30 hover:border-[color:var(--danger)] transition-colors" style="color: var(--danger);">
+        <i data-lucide="power" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- METRIC CARDS -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-volt" style="--flash-color: var(--cyan);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Tegangan (LN)</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(0,229,255,.12); color: var(--cyan);"><i data-lucide="zap" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-volt">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> V</span></p>
+      <div class="metric-bar mt-3"><span id="bar-volt" style="width:0%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan);"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-current" style="--flash-color: var(--violet);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Arus</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(178,38,255,.12); color: var(--violet);"><i data-lucide="activity" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-current">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> mA</span></p>
+      <div class="metric-bar mt-3"><span id="bar-current" style="width:0%; background: var(--violet); box-shadow: 0 0 8px var(--violet);"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-power" style="--flash-color: var(--mint);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Daya Aktif</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(57,255,136,.12); color: var(--mint);"><i data-lucide="cpu" class="w-4 h-4"></i></span>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="relative w-16 h-16 shrink-0">
+          <svg class="gauge-ring w-16 h-16" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8" />
+            <circle id="gauge-power" cx="50" cy="50" r="40" fill="none" stroke="var(--mint)" stroke-width="8" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="251.2" />
+          </svg>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span id="gauge-power-pct" class="font-mono text-xs" style="color: var(--mint);">0%</span>
+          </div>
+        </div>
+        <div>
+          <p class="stat-number font-display text-2xl text-white"><span id="val-power">0.00</span></p>
+          <p class="text-xs font-mono text-[color:var(--ink-dim)]">W <span class="opacity-50">/ 2200W</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-frequency" style="--flash-color: var(--amber);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Frekuensi</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="radio" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-frequency">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> Hz</span></p>
+      <div class="metric-bar mt-3"><span id="bar-frequency" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-energy" style="--flash-color: var(--magenta);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Energi</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,46,159,.12); color: var(--magenta);"><i data-lucide="battery" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-energy">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> kWh</span></p>
+      <div class="metric-bar mt-3"><span id="bar-energy" style="width:0%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta);"></span></div>
+    </div>
+
+    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-biaya" style="--flash-color: var(--amber);">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Estimasi Biaya</span>
+        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="wallet" class="w-4 h-4"></i></span>
+      </div>
+      <p class="stat-number font-display text-3xl text-white" id="val-biaya">Rp 0</p>
+      <div class="metric-bar mt-3"><span id="bar-biaya" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
+    </div>
+  </div>
+
+  <!-- MINI CHARTS -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="zap" class="w-4 h-4" style="color: var(--cyan);"></i> Tren Tegangan (V)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-volt"></canvas></div>
+    </div>
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="activity" class="w-4 h-4" style="color: var(--violet);"></i> Tren Arus (mA)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-current"></canvas></div>
+    </div>
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="cpu" class="w-4 h-4" style="color: var(--mint);"></i> Tren Daya Aktif (W)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-power"></canvas></div>
+    </div>
+    <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+        <i data-lucide="radio" class="w-4 h-4" style="color: var(--amber);"></i> Tren Frekuensi (Hz)
+      </h3>
+      <div class="h-64 w-full"><canvas id="chart-frequency"></canvas></div>
+    </div>
+  </div>
+
+  <!-- DATA LOGGER -->
+  <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+      <h3 class="font-display text-sm tracking-wide uppercase text-white flex items-center gap-2">
+        <i data-lucide="history" class="w-4 h-4" style="color: var(--magenta);"></i> Data Logger
+      </h3>
+      <div class="flex items-center gap-2">
+        <button type="button" id="export-csv-btn" class="btn-neon px-4 py-2 rounded-xl font-display text-[11px] tracking-widest uppercase flex items-center gap-2" style="background: rgba(0,229,255,.1); color: var(--cyan); border: 1px solid rgba(0,229,255,.3);">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Ekspor CSV
+        </button>
+        <button type="button" id="delete-db-btn" class="btn-neon px-4 py-2 rounded-xl font-display text-[11px] tracking-widest uppercase flex items-center gap-2" style="background: rgba(255,59,92,.1); color: var(--danger); border: 1px solid rgba(255,59,92,.3);">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus Database
+        </button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto max-h-96 overflow-y-auto">
+      <table class="term-table w-full text-sm">
+        <thead class="sticky top-0 bg-[#12121f] text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">
+          <tr>
+            <th class="text-left p-3">Waktu</th>
+            <th class="text-left p-3">Tegangan</th>
+            <th class="text-left p-3">Arus</th>
+            <th class="text-left p-3">Daya</th>
+            <th class="text-left p-3">Frekuensi</th>
+            <th class="text-left p-3">Energi</th>
+          </tr>
+        </thead>
+        <tbody id="log-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center justify-between mt-5 text-xs font-mono text-[color:var(--ink-dim)]">
+      <span id="pagination-info">Halaman 1 dari 1</span>
+      <div class="flex items-center gap-2">
+        <button type="button" id="prev-page-btn" class="btn-neon w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-black/30 disabled:opacity-30 disabled:cursor-not-allowed">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+        </button>
+        <button type="button" id="next-page-btn" class="btn-neon w-9 h-9 flex items-center justify-center rounded-lg border border-white/10 bg-black/30 disabled:opacity-30 disabled:cursor-not-allowed">
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="text-center text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] pt-4 pb-2 flex items-center justify-center gap-2">
+    <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+    <span>Data terakhir diterima: <span id="last-update" class="normal-case tracking-normal">-</span></span>
+  </footer>
+</div>
+
+<!-- TOAST -->
+<div id="toast-stack" class="toast-stack"></div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div id="confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  <div class="cyber-panel hud-corners rounded-2xl p-6 max-w-sm w-full">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style="background: rgba(255,59,92,.1); border: 1px solid rgba(255,59,92,.35);">
+      <i data-lucide="alert-triangle" class="w-6 h-6" style="color: var(--danger);"></i>
+    </div>
+    <h3 class="font-display text-white font-semibold mb-2">Hapus Seluruh Data?</h3>
+    <p class="text-sm text-[color:var(--ink-dim)] mb-6">Tindakan ini akan menghapus semua riwayat data logger secara permanen dan tidak dapat dibatalkan.</p>
+    <div class="flex gap-3">
+      <button type="button" id="confirm-cancel-btn" class="btn-neon flex-1 py-2.5 rounded-xl font-display text-xs tracking-widest uppercase border border-white/10 bg-black/30 text-white">Batal</button>
+      <button type="button" id="confirm-delete-btn" class="btn-neon flex-1 py-2.5 rounded-xl font-display text-xs tracking-widest uppercase" style="background: var(--danger); color: #050509;">Hapus</button>
+    </div>
+  </div>
+</div>
+
+<script src="effects.js"></script>
+<script>
+(function () {
+  const PAGE_SIZE = 10;
+  const MAX_CHART_POINTS = 100;
+  const MAX_VALUES = { volt: 250, current: 2000, power: 2200, frequency: 60, energy: 10, biaya: 50000 };
+  const TARIF_PER_KWH = 1444;
+
+  const METRICS = [
+    { key: 'volt', color: '#00E5FF' },
+    { key: 'current', color: '#B026FF' },
+    { key: 'power', color: '#39FF88' },
+    { key: 'frequency', color: '#FFB020' },
+  ];
+
+  let db = null;
+  let mqttClient = null;
+  let logs = [];
+  let currentPage = 1;
+  const charts = {};
+  const lastValues = { volt: 0, current: 0, power: 0, frequency: 0, energy: 0, biaya: 0 };
+  let isDemo = false;
+  let demoTimer = null;
+  const demoState = { t: 0, energy: 12.4 };
+
+  function generateDemoData() {
+    demoState.t += 0.15;
+    const wave = Math.sin(demoState.t) * 10;
+    const noise = (Math.random() - 0.5) * 6;
+    const power = Math.max(1.5, 45 + wave + noise);
+    const volt = 218 + Math.sin(demoState.t * 0.6) * 3 + (Math.random() - 0.5) * 1.2;
+    const current = (power / volt) * 1000;
+    const frequency = 50 + Math.sin(demoState.t * 0.3) * 0.15 + (Math.random() - 0.5) * 0.05;
+    demoState.energy += (power / 1000) * (2 / 3600);
+    return { volt, current, power, frequency, energy: demoState.energy };
+  }
+
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt2 = (v) => (Number(v) || 0).toFixed(2);
+  const fmtRupiah = (v) => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
+  const formatDateTime = (d) =>
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+
+  // ---------- Toast ----------
+  function pushToast(type, msg) {
+    const styles = {
+      success: { color: 'var(--mint)', icon: 'check' },
+      error: { color: 'var(--danger)', icon: 'alert-triangle' },
+      info: { color: 'var(--cyan)', icon: 'alert-triangle' },
+    };
+    const s = styles[type] || styles.info;
+    const el = document.createElement('div');
+    el.className = 'toast-item cyber-panel px-4 py-3 rounded-xl flex items-center gap-3 min-w-[240px]';
+    el.style.color = s.color;
+    el.innerHTML = `<i data-lucide="${s.icon}" class="w-4 h-4 shrink-0"></i><span class="text-sm font-body text-[color:var(--ink)]">${msg}</span>`;
+    $('toast-stack').appendChild(el);
+    lucide.createIcons();
+    setTimeout(() => el.remove(), 3200);
+  }
+
+  // ---------- Jam realtime ----------
+  function tickClock() { $('clock-display').textContent = formatDateTime(new Date()); }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  // ---------- IndexedDB (persistensi datalogger) ----------
+  const LIVE_DB_NAME = 'PowermeterLoggerDB';
+  const DEMO_DB_NAME = 'PowermeterLoggerDB_Demo';
+  const STORE = 'logs';
+  function switchDatabase(name) {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(name, 1);
+      req.onupgradeneeded = (e) => {
+        const idb = e.target.result;
+        if (!idb.objectStoreNames.contains(STORE)) {
+          idb.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+  async function reloadLogsFromDb() {
+    logs = (await getAllLogs()).sort((a, b) => b.ts - a.ts);
+    currentPage = 1;
+    renderTable();
+  }
+  function addLog(entry) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).add(entry);
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  }
+  function getAllLogs() {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+  }
+  function clearLogs() {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  // ---------- Grafik mini realtime ----------
+  function initCharts() {
+    METRICS.forEach((m) => {
+      const ctx = $('chart-' + m.key).getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+      gradient.addColorStop(0, m.color + 'B3');
+      gradient.addColorStop(1, m.color + '00');
+      charts[m.key] = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ data: [], borderColor: m.color, borderWidth: 3, pointRadius: (c) => (c.dataset.data.length > 30 ? 0 : 4), pointHoverRadius: 6, pointBackgroundColor: '#00E5FF', pointBorderColor: '#00E5FF', tension: .4, fill: true, backgroundColor: gradient }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 300 },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8b8aa8', font: { family: 'JetBrains Mono', size: 10 }, maxTicksLimit: 8 } },
+            y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#8b8aa8', font: { family: 'JetBrains Mono', size: 10 } } },
+          },
+        },
+      });
+    });
+  }
+  function pushChartPoint(key, value, label) {
+    const c = charts[key];
+    if (!c) return;
+    c.data.labels.push(label);
+    c.data.datasets[0].data.push(value);
+    if (c.data.labels.length > MAX_CHART_POINTS) {
+      c.data.labels.shift();
+      c.data.datasets[0].data.shift();
+    }
+    c.update('none');
+  }
+
+  // ---------- Kartu metrik (angka animasi count-up + flash + progress) ----------
+  function flashCard(key) {
+    const el = $('card-' + key);
+    if (!el) return;
+    el.classList.remove('flash-update');
+    void el.offsetWidth;
+    el.classList.add('flash-update');
+  }
+  function animateValue(key, from, to, duration = 500, currency = false) {
+    const span = $('val-' + key);
+    if (!span) return;
+    const start = performance.now();
+    function step(now) {
+      const p = Math.min(1, (now - start) / duration);
+      const v = from + (to - from) * p;
+      span.textContent = currency ? fmtRupiah(v) : fmt2(v);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  function updateCards(data) {
+    ['volt', 'current', 'power', 'frequency', 'energy'].forEach((key) => {
+      const target = Number(data[key]) || 0;
+      animateValue(key, lastValues[key], target);
+      const max = MAX_VALUES[key];
+      const pct = Math.min(100, Math.max(0, (target / max) * 100 || 0));
+      const bar = $('bar-' + key);
+      if (bar) bar.style.width = pct + '%';
+      lastValues[key] = target;
+      flashCard(key);
+    });
+    const biaya = (Number(data.energy) || 0) * TARIF_PER_KWH;
+    animateValue('biaya', lastValues.biaya, biaya, 500, true);
+    const biayaPct = Math.min(100, Math.max(0, (biaya / MAX_VALUES.biaya) * 100 || 0));
+    const biayaBar = $('bar-biaya');
+    if (biayaBar) biayaBar.style.width = biayaPct + '%';
+    lastValues.biaya = biaya;
+    flashCard('biaya');
+
+    const R = 40, C = 2 * Math.PI * R;
+    const powerPct = Math.min(100, Math.max(0, (Number(data.power) / MAX_VALUES.power) * 100 || 0));
+    $('gauge-power').setAttribute('stroke-dashoffset', C - (powerPct / 100) * C);
+    $('gauge-power-pct').textContent = powerPct.toFixed(0) + '%';
+  }
+
+  // ---------- Tabel & paginasi ----------
+  function renderTable() {
+    const body = $('log-table-body');
+    const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageRows = logs.slice(start, start + PAGE_SIZE);
+    body.innerHTML = '';
+    if (pageRows.length === 0) {
+      body.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-[color:var(--ink-dim)] font-mono text-xs">Belum ada data tersimpan.</td></tr>`;
+    } else {
+      pageRows.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.className = 'row-in';
+        tr.innerHTML = `
+          <td class="p-3 text-[color:var(--ink-dim)] font-mono text-xs">${formatDateTime(new Date(row.ts))}</td>
+          <td class="p-3 font-mono" style="color: var(--cyan);">${fmt2(row.volt)} V</td>
+          <td class="p-3 font-mono" style="color: var(--violet);">${fmt2(row.current)} mA</td>
+          <td class="p-3 font-mono" style="color: var(--mint);">${fmt2(row.power)} W</td>
+          <td class="p-3 font-mono" style="color: var(--amber);">${fmt2(row.frequency)} Hz</td>
+          <td class="p-3 font-mono" style="color: var(--magenta);">${fmt2(row.energy)} kWh</td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+    $('pagination-info').textContent = `Halaman ${currentPage} dari ${totalPages} (${logs.length} data)`;
+    $('prev-page-btn').disabled = currentPage <= 1;
+    $('next-page-btn').disabled = currentPage >= totalPages;
+  }
+  $('prev-page-btn').addEventListener('click', () => { if (currentPage > 1) { currentPage--; renderTable(); } });
+  $('next-page-btn').addEventListener('click', () => {
+    const totalPages = Math.max(1, Math.ceil(logs.length / PAGE_SIZE));
+    if (currentPage < totalPages) { currentPage++; renderTable(); }
+  });
+
+  // ---------- Ekspor CSV ----------
+  $('export-csv-btn').addEventListener('click', () => {
+    const header = ['Waktu', 'Tegangan (V)', 'Arus (mA)', 'Daya Aktif (W)', 'Frekuensi (Hz)', 'Energi (kWh)'];
+    const rows = logs.map((r) => [formatDateTime(new Date(r.ts)), fmt2(r.volt), fmt2(r.current), fmt2(r.power), fmt2(r.frequency), fmt2(r.energy)]);
+    const csv = [header, ...rows].map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `datalogger_powermeter_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    pushToast('success', 'Data logger berhasil diekspor ke CSV.');
+  });
+
+  // ---------- Hapus database ----------
+  $('delete-db-btn').addEventListener('click', () => $('confirm-modal').classList.remove('hidden'));
+  $('confirm-cancel-btn').addEventListener('click', () => $('confirm-modal').classList.add('hidden'));
+  $('confirm-delete-btn').addEventListener('click', async () => {
+    await clearLogs();
+    logs = [];
+    currentPage = 1;
+    renderTable();
+    $('confirm-modal').classList.add('hidden');
+    pushToast('success', 'Seluruh data logger berhasil dihapus.');
+  });
+
+  // ---------- Validasi form auth ----------
+  const FIELD_IDS = ['f-broker', 'f-port', 'f-clientid', 'f-username', 'f-password', 'f-topic'];
+  function validateForm() {
+    const allFilled = FIELD_IDS.every((id) => $(id).value.trim() !== '');
+    $('connect-btn').disabled = !allFilled;
+  }
+  FIELD_IDS.forEach((id) => $(id).addEventListener('input', validateForm));
+
+  $('toggle-password-btn').addEventListener('click', () => {
+    const input = $('f-password');
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+    $('toggle-password-btn').innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
+    lucide.createIcons();
+  });
+
+  function parseBrokerUrl(raw) {
+    let s = raw.trim().replace(/^wss?:\/\//i, '').replace(/^https?:\/\//i, '');
+    let path = '/mqtt';
+    const slashIdx = s.indexOf('/');
+    if (slashIdx !== -1) { path = s.slice(slashIdx); s = s.slice(0, slashIdx); }
+    const colonIdx = s.indexOf(':');
+    const host = colonIdx !== -1 ? s.slice(0, colonIdx) : s;
+    return { host, path };
+  }
+
+  function showAuthError(msg) {
+    $('auth-error-text').textContent = msg;
+    $('auth-error').classList.remove('hidden');
+  }
+  function hideAuthError() { $('auth-error').classList.add('hidden'); }
+
+  function setConnectingState(isConnecting) {
+    const btn = $('connect-btn');
+    btn.disabled = isConnecting;
+    btn.innerHTML = isConnecting
+      ? `<span class="spinner"></span><span>Menghubungkan...</span>`
+      : `<i data-lucide="wifi" class="w-4 h-4"></i><span>Hubungkan ke Broker</span>`;
+    lucide.createIcons();
+  }
+
+  function setStatus(isOnline) {
+    const dot = $('status-dot');
+    const text = $('status-text');
+    if (isOnline) {
+      dot.style.background = 'var(--mint)'; dot.style.color = 'var(--mint)';
+      text.textContent = 'SYSTEM ONLINE'; text.style.color = 'var(--mint)';
+    } else {
+      dot.style.background = 'var(--danger)'; dot.style.color = 'var(--danger)';
+      text.textContent = 'TERPUTUS'; text.style.color = 'var(--danger)';
+    }
+  }
+
+  function showDashboard() {
+    $('auth-section').classList.add('hidden');
+    $('dashboard-section').classList.remove('hidden');
+    document.querySelectorAll('.reveal').forEach((el) => window.registerReveal && window.registerReveal(el));
+  }
+  function showAuthForm() {
+    $('dashboard-section').classList.add('hidden');
+    $('auth-section').classList.remove('hidden');
+    setConnectingState(false);
+    validateForm();
+  }
+
+  // ---------- Data masuk (dipakai bareng oleh MQTT asli & mode demo) ----------
+  function processIncomingData(rawData) {
+    const data = {
+      volt: Number(rawData.volt) || 0,
+      current: Number(rawData.current) || 0,
+      power: Number(rawData.power) || 0,
+      frequency: Number(rawData.frequency) || 0,
+      energy: Number(rawData.energy) || 0,
+    };
+    updateCards(data);
+    const now = new Date();
+    const label = formatDateTime(now).split(', ')[0];
+    METRICS.forEach((m) => pushChartPoint(m.key, data[m.key], label));
+    const entry = { ...data, ts: now.getTime() };
+    addLog(entry).then(() => {
+      logs.unshift(entry);
+      renderTable();
+    });
+    $('last-update').textContent = formatDateTime(now);
+  }
+
+  // ---------- MQTT (Paho) ----------
+  function onMessageArrived(message) {
+    let payload;
+    try { payload = JSON.parse(message.payloadString); } catch (e) { return; }
+    processIncomingData(payload);
+  }
+
+  function onConnectionLost(responseObject) {
+    setStatus(false);
+    pushToast('error', 'Koneksi terputus: ' + (responseObject.errorMessage || 'tidak diketahui.'));
+    showAuthError('Koneksi terputus: ' + (responseObject.errorMessage || 'tidak diketahui.'));
+    showAuthForm();
+  }
+
+  $('auth-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    hideAuthError();
+    const { host, path } = parseBrokerUrl($('f-broker').value);
+    const port = Number($('f-port').value);
+    const clientId = $('f-clientid').value.trim();
+    const username = $('f-username').value.trim();
+    const password = $('f-password').value;
+    const topic = $('f-topic').value.trim();
+
+    setConnectingState(true);
+    try {
+      mqttClient = new Paho.Client(host, port, path, clientId);
+      mqttClient.onConnectionLost = onConnectionLost;
+      mqttClient.onMessageArrived = onMessageArrived;
+      mqttClient.connect({
+        userName: username,
+        password: password,
+        useSSL: true,
+        timeout: 10,
+        cleanSession: true,
+        onSuccess: () => {
+          mqttClient.subscribe(topic);
+          setStatus(true);
+          setConnectingState(false);
+          showDashboard();
+          pushToast('success', 'Berhasil terhubung ke broker MQTT.');
+        },
+        onFailure: (err) => {
+          setConnectingState(false);
+          setStatus(false);
+          showAuthError('Gagal terhubung: ' + (err.errorMessage || 'periksa kembali detail broker.'));
+        },
+      });
+    } catch (err) {
+      setConnectingState(false);
+      showAuthError('Konfigurasi broker tidak valid: ' + err.message);
+    }
+  });
+
+  $('demo-btn').addEventListener('click', async () => {
+    hideAuthError();
+    isDemo = true;
+    demoState.t = 0;
+    demoState.energy = 12.4;
+    await switchDatabase(DEMO_DB_NAME);
+    await reloadLogsFromDb();
+    setStatus(true);
+    showDashboard();
+    $('demo-badge').classList.remove('hidden');
+    pushToast('success', 'Mode demo aktif — data simulasi lokal.');
+    processIncomingData(generateDemoData());
+    demoTimer = setInterval(() => processIncomingData(generateDemoData()), 2000);
+  });
+
+  $('disconnect-btn').addEventListener('click', async () => {
+    if (isDemo) {
+      if (demoTimer) clearInterval(demoTimer);
+      demoTimer = null;
+      isDemo = false;
+      $('demo-badge').classList.add('hidden');
+      await switchDatabase(LIVE_DB_NAME);
+      await reloadLogsFromDb();
+      pushToast('info', 'Mode demo dihentikan.');
+    } else {
+      if (mqttClient && mqttClient.isConnected()) mqttClient.disconnect();
+      pushToast('info', 'Terputus dari broker MQTT.');
+    }
+    setStatus(false);
+    showAuthForm();
+  });
+
+  // ---------- Inisialisasi ----------
+  async function init() {
+    lucide.createIcons();
+    if (window.initCircuitBG) window.initCircuitBG($('circuit-bg'));
+    initCharts();
+    await switchDatabase(LIVE_DB_NAME);
+    await reloadLogsFromDb();
+    validateForm();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
