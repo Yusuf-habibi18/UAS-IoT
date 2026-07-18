@@ -184,8 +184,23 @@
     </div>
   </div>
 
+  <!-- ESTIMASI BIAYA (bar memanjang) -->
+  <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-biaya" style="--flash-color: var(--amber);">
+    <div class="flex items-center justify-between gap-4 flex-wrap">
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="wallet" class="w-5 h-5"></i></span>
+        <div>
+          <p class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Estimasi Biaya</p>
+          <p class="text-[10px] font-mono text-[color:var(--ink-dim)] opacity-70">Tarif Rp 1.444 / kWh</p>
+        </div>
+      </div>
+      <p class="stat-number font-display text-3xl text-white" id="val-biaya">&ndash;</p>
+    </div>
+    <div class="metric-bar mt-4"><span id="bar-biaya" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
+  </div>
+
   <!-- METRIC CARDS -->
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
     <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-volt" style="--flash-color: var(--cyan);">
       <div class="flex items-center justify-between mb-3">
         <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Tegangan (LN)</span>
@@ -242,15 +257,6 @@
       </div>
       <p class="stat-number font-display text-3xl text-white"><span id="val-energy">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> kWh</span></p>
       <div class="metric-bar mt-3"><span id="bar-energy" style="width:0%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta);"></span></div>
-    </div>
-
-    <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-biaya" style="--flash-color: var(--amber);">
-      <div class="flex items-center justify-between mb-3">
-        <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Estimasi Biaya</span>
-        <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="wallet" class="w-4 h-4"></i></span>
-      </div>
-      <p class="stat-number font-display text-3xl text-white" id="val-biaya">&ndash;</p>
-      <div class="metric-bar mt-3"><span id="bar-biaya" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
     </div>
   </div>
 
