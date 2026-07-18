@@ -183,7 +183,9 @@ def login():
     username = data.get("username")
     password = data.get("password")
 
-    if username == "kelompok2" and password == "kelompok2":
+    # Disamakan dengan kredensial broker MQTT (kelompok2 / Kelompok2) supaya
+    # satu form (Broker + Login) bisa dipakai sekaligus untuk keduanya.
+    if username == "kelompok2" and password == "Kelompok2":
         simpan_log("USER LOGIN", f"Pengguna {username} berhasil login ke dashboard.")
         return jsonify({"status": "SUCCESS", "message": "Login Berhasil", "token": "dummy-token-kelompok2"}), 200
     else:
