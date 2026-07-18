@@ -146,6 +146,44 @@
     </div>
   </header>
 
+  <!-- COMMAND ARRAY (KONTROL AKTUATOR) -->
+  <div class="cyber-panel hud-corners rounded-2xl p-6 relative overflow-hidden reveal">
+    <h3 class="font-display text-sm tracking-wide uppercase text-white mb-5 flex items-center gap-2">
+      <i data-lucide="settings" class="w-4 h-4" style="color: var(--violet);"></i>
+      Command Array
+    </h3>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="flex items-center justify-between bg-black/25 border border-white/10 rounded-xl px-4 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center" style="background: rgba(57,255,136,.13); color: var(--mint);">
+            <i data-lucide="power" class="w-4 h-4"></i>
+          </span>
+          <div>
+            <p class="font-display text-sm tracking-wide text-white">Relay Lampu</p>
+            <p id="relay1-status" class="text-[11px] font-mono uppercase tracking-wider" style="color: var(--ink-dim);">NONAKTIF</p>
+          </div>
+        </div>
+        <button type="button" id="toggle-relay1" role="switch" aria-checked="false" aria-label="Toggle Relay Lampu" class="cyber-toggle off armed">
+          <span class="knob"></span>
+        </button>
+      </div>
+      <div class="flex items-center justify-between bg-black/25 border border-white/10 rounded-xl px-4 py-3.5">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.13); color: var(--amber);">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+          </span>
+          <div>
+            <p class="font-display text-sm tracking-wide text-white">Buzzer Alarm</p>
+            <p id="buzzer-status" class="text-[11px] font-mono uppercase tracking-wider" style="color: var(--ink-dim);">NONAKTIF</p>
+          </div>
+        </div>
+        <button type="button" id="toggle-buzzer" role="switch" aria-checked="false" aria-label="Toggle Buzzer Alarm" class="cyber-toggle off armed">
+          <span class="knob"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- METRIC CARDS -->
   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
     <div class="metric-card cyber-panel rounded-2xl p-5 relative overflow-hidden" id="card-volt" style="--flash-color: var(--cyan);">
@@ -153,7 +191,7 @@
         <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Tegangan (LN)</span>
         <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(0,229,255,.12); color: var(--cyan);"><i data-lucide="zap" class="w-4 h-4"></i></span>
       </div>
-      <p class="stat-number font-display text-3xl text-white"><span id="val-volt">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> V</span></p>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-volt">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> V</span></p>
       <div class="metric-bar mt-3"><span id="bar-volt" style="width:0%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan);"></span></div>
     </div>
 
@@ -162,7 +200,7 @@
         <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Arus</span>
         <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(178,38,255,.12); color: var(--violet);"><i data-lucide="activity" class="w-4 h-4"></i></span>
       </div>
-      <p class="stat-number font-display text-3xl text-white"><span id="val-current">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> mA</span></p>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-current">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> mA</span></p>
       <div class="metric-bar mt-3"><span id="bar-current" style="width:0%; background: var(--violet); box-shadow: 0 0 8px var(--violet);"></span></div>
     </div>
 
@@ -178,11 +216,11 @@
             <circle id="gauge-power" cx="50" cy="50" r="40" fill="none" stroke="var(--mint)" stroke-width="8" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="251.2" />
           </svg>
           <div class="absolute inset-0 flex items-center justify-center">
-            <span id="gauge-power-pct" class="font-mono text-xs" style="color: var(--mint);">0%</span>
+            <span id="gauge-power-pct" class="font-mono text-xs" style="color: var(--mint);">&ndash;</span>
           </div>
         </div>
         <div>
-          <p class="stat-number font-display text-2xl text-white"><span id="val-power">0.00</span></p>
+          <p class="stat-number font-display text-2xl text-white"><span id="val-power">&ndash;</span></p>
           <p class="text-xs font-mono text-[color:var(--ink-dim)]">W <span class="opacity-50">/ 2200W</span></p>
         </div>
       </div>
@@ -193,7 +231,7 @@
         <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Frekuensi</span>
         <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="radio" class="w-4 h-4"></i></span>
       </div>
-      <p class="stat-number font-display text-3xl text-white"><span id="val-frequency">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> Hz</span></p>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-frequency">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> Hz</span></p>
       <div class="metric-bar mt-3"><span id="bar-frequency" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
     </div>
 
@@ -202,7 +240,7 @@
         <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Energi</span>
         <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,46,159,.12); color: var(--magenta);"><i data-lucide="battery" class="w-4 h-4"></i></span>
       </div>
-      <p class="stat-number font-display text-3xl text-white"><span id="val-energy">0.00</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> kWh</span></p>
+      <p class="stat-number font-display text-3xl text-white"><span id="val-energy">&ndash;</span><span class="text-sm font-mono font-normal text-[color:var(--ink-dim)]"> kWh</span></p>
       <div class="metric-bar mt-3"><span id="bar-energy" style="width:0%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta);"></span></div>
     </div>
 
@@ -211,7 +249,7 @@
         <span class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)]">Estimasi Biaya</span>
         <span class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: rgba(255,176,32,.12); color: var(--amber);"><i data-lucide="wallet" class="w-4 h-4"></i></span>
       </div>
-      <p class="stat-number font-display text-3xl text-white" id="val-biaya">Rp 0</p>
+      <p class="stat-number font-display text-3xl text-white" id="val-biaya">&ndash;</p>
       <div class="metric-bar mt-3"><span id="bar-biaya" style="width:0%; background: var(--amber); box-shadow: 0 0 8px var(--amber);"></span></div>
     </div>
   </div>
@@ -336,18 +374,67 @@
   const lastValues = { volt: 0, current: 0, power: 0, frequency: 0, energy: 0, biaya: 0 };
   let isDemo = false;
   let demoTimer = null;
+  let currentTopic = '';
   const demoState = { t: 0, energy: 12.4 };
+  const actuatorState = { relay1: false, buzzer: false };
 
   function generateDemoData() {
     demoState.t += 0.15;
+    const baseLoad = actuatorState.relay1 ? 85 : 45;
+    const buzzLoad = actuatorState.buzzer ? 6 : 0;
     const wave = Math.sin(demoState.t) * 10;
     const noise = (Math.random() - 0.5) * 6;
-    const power = Math.max(1.5, 45 + wave + noise);
+    const power = Math.max(1.5, baseLoad + buzzLoad + wave + noise);
     const volt = 218 + Math.sin(demoState.t * 0.6) * 3 + (Math.random() - 0.5) * 1.2;
     const current = (power / volt) * 1000;
     const frequency = 50 + Math.sin(demoState.t * 0.3) * 0.15 + (Math.random() - 0.5) * 0.05;
     demoState.energy += (power / 1000) * (2 / 3600);
     return { volt, current, power, frequency, energy: demoState.energy };
+  }
+
+  // ---------- Command Array (kontrol aktuator) ----------
+  function setToggleUI(actuator, on) {
+    const btn = $('toggle-' + actuator);
+    const statusEl = $(actuator + '-status');
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    btn.className = 'cyber-toggle ' + (on ? 'on' : 'off armed');
+    statusEl.textContent = on ? 'AKTIF' : 'NONAKTIF';
+    statusEl.style.color = on ? 'var(--mint)' : 'var(--ink-dim)';
+  }
+  function resetActuators() {
+    actuatorState.relay1 = false;
+    actuatorState.buzzer = false;
+    setToggleUI('relay1', false);
+    setToggleUI('buzzer', false);
+  }
+  function toggleActuator(actuator) {
+    const next = !actuatorState[actuator];
+    const label = actuator === 'relay1' ? 'Relay Lampu' : 'Buzzer Alarm';
+    const command = next ? 'ON' : 'OFF';
+
+    if (isDemo) {
+      actuatorState[actuator] = next;
+      setToggleUI(actuator, next);
+      pushToast('success', `${label} → ${command} (simulasi)`);
+      return;
+    }
+    if (!mqttClient || !mqttClient.isConnected()) {
+      pushToast('error', 'Tidak terhubung ke broker MQTT.');
+      return;
+    }
+    actuatorState[actuator] = next;
+    setToggleUI(actuator, next); // optimistic
+    try {
+      const msg = new Paho.Message(JSON.stringify({ [actuator]: command }));
+      msg.destinationName = currentTopic + '/control';
+      msg.qos = 1;
+      mqttClient.send(msg);
+      pushToast('success', `${label} → ${command}`);
+    } catch (err) {
+      actuatorState[actuator] = !next;
+      setToggleUI(actuator, !next); // revert kalau gagal
+      pushToast('error', `Gagal mengirim perintah ${label}: ` + err.message);
+    }
   }
 
   const $ = (id) => document.getElementById(id);
@@ -356,6 +443,9 @@
   const fmtRupiah = (v) => 'Rp ' + Math.round(v || 0).toLocaleString('id-ID');
   const formatDateTime = (d) =>
     `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+
+  $('toggle-relay1').addEventListener('click', () => toggleActuator('relay1'));
+  $('toggle-buzzer').addEventListener('click', () => toggleActuator('buzzer'));
 
   // ---------- Toast ----------
   function pushToast(type, msg) {
@@ -691,6 +781,8 @@
         cleanSession: true,
         onSuccess: () => {
           mqttClient.subscribe(topic);
+          currentTopic = topic;
+          resetActuators();
           setStatus(true);
           setConnectingState(false);
           showDashboard();
@@ -715,6 +807,7 @@
     demoState.energy = 12.4;
     await switchDatabase(DEMO_DB_NAME);
     await reloadLogsFromDb();
+    resetActuators();
     setStatus(true);
     showDashboard();
     $('demo-badge').classList.remove('hidden');
@@ -736,6 +829,7 @@
       if (mqttClient && mqttClient.isConnected()) mqttClient.disconnect();
       pushToast('info', 'Terputus dari broker MQTT.');
     }
+    resetActuators();
     setStatus(false);
     showAuthForm();
   });
