@@ -263,7 +263,7 @@
 <div class="scanline-overlay" aria-hidden="true"></div>
 <div class="scan-sweep" aria-hidden="true"></div>
 
-<!-- AUTH FORM -->
+<!-- AUTH FORM (1 layar: sekaligus Login backend + koneksi Broker MQTT) -->
 <div id="auth-section" class="auth-shell relative z-10">
   <div class="auth-card cyber-panel hud-corners rounded-2xl p-8">
     <div class="text-center mb-7">
@@ -272,15 +272,40 @@
       </div>
       <h1 class="glitch font-display text-xl font-semibold tracking-wide text-white" data-text="DASHBOARD MONITORING POWERMETER">DASHBOARD MONITORING POWERMETER</h1>
       <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-2 uppercase tracking-widest">Plant 1 &ndash; Jawa Timur</p>
-      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-3 uppercase tracking-widest">Autentikasi Operator Diperlukan</p>
+      <p class="text-xs font-mono text-[color:var(--ink-dim)] mt-3 uppercase tracking-widest">Autentikasi Broker MQTT (SSL/TLS)</p>
     </div>
 
     <form id="auth-form" class="space-y-4">
       <div>
+        <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Broker URL</label>
+        <div class="relative">
+          <i data-lucide="server" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+          <input id="f-mqtt-broker" type="text" class="cyber-input pl-10" required value="1cd3ab6781ef422ab1c92882949b0e99.s1.eu.hivemq.cloud:8884/mqtt" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Port</label>
+          <div class="relative">
+            <i data-lucide="plug" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+            <input id="f-mqtt-port" type="number" class="cyber-input pl-10" required value="8884" />
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Client ID</label>
+          <div class="relative">
+            <i data-lucide="hash" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+            <input id="f-mqtt-clientid" type="text" class="cyber-input pl-10" required value="Dashboard_Kelompok2" />
+          </div>
+        </div>
+      </div>
+
+      <div>
         <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Username</label>
         <div class="relative">
           <i data-lucide="user" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
-          <input id="f-username" type="text" class="cyber-input pl-10" required value="kelompok2" autocomplete="username" />
+          <input id="f-mqtt-username" type="text" class="cyber-input pl-10" required value="kelompok2" autocomplete="username" />
         </div>
       </div>
 
@@ -288,10 +313,27 @@
         <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Password</label>
         <div class="relative">
           <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
-          <input id="f-password" type="password" class="cyber-input pl-10 pr-10" required value="kelompok2" autocomplete="current-password" />
-          <button type="button" id="toggle-password-btn" class="absolute right-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);" aria-label="Tampilkan password">
+          <input id="f-mqtt-password" type="password" class="cyber-input pl-10 pr-10" required value="Kelompok2" autocomplete="current-password" />
+          <button type="button" id="toggle-mqtt-password-btn" class="absolute right-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);" aria-label="Tampilkan password">
             <i data-lucide="eye" class="w-4 h-4"></i>
           </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Topic Sensor</label>
+          <div class="relative">
+            <i data-lucide="radio" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+            <input id="f-mqtt-topic" type="text" class="cyber-input pl-10" required value="itpln/kelompok2/sensor" />
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] font-mono uppercase tracking-widest text-[color:var(--ink-dim)] mb-1.5 block">Topic Kontrol</label>
+          <div class="relative">
+            <i data-lucide="settings" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style="color: var(--ink-dim);"></i>
+            <input id="f-mqtt-topic-control" type="text" class="cyber-input pl-10" required value="itpln/kelompok2/control" />
+          </div>
         </div>
       </div>
 
@@ -301,11 +343,11 @@
       </div>
 
       <button id="connect-btn" type="submit" class="btn-primary-cyber btn-neon w-full py-3 rounded-xl font-display text-sm tracking-wide uppercase flex items-center justify-center gap-2 disabled:opacity-60">
-        <i data-lucide="log-in" class="w-4 h-4"></i>
-        <span>Masuk</span>
+        <i data-lucide="wifi" class="w-4 h-4"></i>
+        <span>Hubungkan ke Broker</span>
       </button>
       <p class="text-[11px] text-center text-[color:var(--ink-dim)] font-mono leading-relaxed">
-        Login diverifikasi ke Back-End (Flask), lalu dashboard otomatis terhubung ke broker MQTT untuk monitoring realtime.
+        Username/Password diverifikasi ke Back-End (Login) sekaligus dipakai untuk autentikasi ke broker MQTT.
       </p>
     </form>
 
@@ -315,7 +357,7 @@
       <i data-lucide="flask-conical" class="w-4 h-4"></i> Coba Mode Demo (Tanpa Broker)
     </button>
     <p class="text-[11px] text-center text-[color:var(--ink-dim)] mt-3 font-mono leading-relaxed">
-      Mode demo memakai data simulasi lokal &mdash; tidak memerlukan broker MQTT sungguhan.
+      Mode demo memakai data simulasi lokal &mdash; tidak memerlukan Back-End maupun broker MQTT sungguhan.
     </p>
   </div>
 </div>
@@ -753,16 +795,6 @@
   const PAGE_SIZE = 10;
   const MAX_CHART_POINTS = 100;
   const BACKEND_URL = 'http://127.0.0.1:5000';
-  // Konfigurasi broker MQTT tetap (mengikuti firmware ESP32 asli) — tidak lagi
-  // diisi manual lewat form, cukup login lewat Back-End lalu auto-connect.
-  const MQTT_CONFIG = {
-    brokerUrl: '1cd3ab6781ef422ab1c92882949b0e99.s1.eu.hivemq.cloud:8884/mqtt',
-    username: 'kelompok2',
-    password: 'Kelompok2',
-    clientId: 'Dashboard_Kelompok2_' + Math.floor(Math.random() * 100000),
-    topic: 'itpln/kelompok2/sensor',
-    topicControl: 'itpln/kelompok2/control',
-  };
   let currentOperator = '';
   const MAX_VALUES = { volt: 250, current: 2000, power: 2200, suhu: 100, kelembapan: 100, energy: 10, biaya: 50000 };
   const TARIF_PER_KWH = 1444;
@@ -1105,19 +1137,19 @@
     pushToast('success', 'Seluruh data logger berhasil dihapus.');
   });
 
-  // ---------- Validasi form auth ----------
-  const FIELD_IDS = ['f-username', 'f-password'];
+  // ---------- Validasi form (Broker + Login jadi satu) ----------
+  const FIELD_IDS = ['f-mqtt-broker', 'f-mqtt-port', 'f-mqtt-clientid', 'f-mqtt-username', 'f-mqtt-password', 'f-mqtt-topic', 'f-mqtt-topic-control'];
   function validateForm() {
     const allFilled = FIELD_IDS.every((id) => $(id).value.trim() !== '');
     $('connect-btn').disabled = !allFilled;
   }
   FIELD_IDS.forEach((id) => $(id).addEventListener('input', validateForm));
 
-  $('toggle-password-btn').addEventListener('click', () => {
-    const input = $('f-password');
+  $('toggle-mqtt-password-btn').addEventListener('click', () => {
+    const input = $('f-mqtt-password');
     const isPass = input.type === 'password';
     input.type = isPass ? 'text' : 'password';
-    $('toggle-password-btn').innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
+    $('toggle-mqtt-password-btn').innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
     lucide.createIcons();
   });
 
@@ -1254,48 +1286,21 @@
     showAuthForm();
   }
 
-  function connectMqttAfterLogin() {
-    const { host, path } = parseBrokerUrl(MQTT_CONFIG.brokerUrl);
-    try {
-      mqttClient = new Paho.Client(host, 8884, path, MQTT_CONFIG.clientId);
-      mqttClient.onConnectionLost = onConnectionLost;
-      mqttClient.onMessageArrived = onMessageArrived;
-      mqttClient.connect({
-        userName: MQTT_CONFIG.username,
-        password: MQTT_CONFIG.password,
-        useSSL: true,
-        timeout: 10,
-        cleanSession: true,
-        onSuccess: () => {
-          mqttClient.subscribe(MQTT_CONFIG.topic);
-          currentTopic = MQTT_CONFIG.topic;
-          currentControlTopic = MQTT_CONFIG.topicControl;
-          resetActuators();
-          setStatus(true);
-          setConnectingState(false);
-          $('operator-label').textContent = '· operator ' + currentOperator;
-          showDashboard();
-          pushToast('success', 'Login berhasil, tersambung ke broker MQTT.');
-        },
-        onFailure: (err) => {
-          setConnectingState(false);
-          setStatus(false);
-          showAuthError('Login berhasil, tapi gagal terhubung ke broker MQTT: ' + (err.errorMessage || 'tidak diketahui.'));
-        },
-      });
-    } catch (err) {
-      setConnectingState(false);
-      showAuthError('Konfigurasi broker tidak valid: ' + err.message);
-    }
-  }
-
+  // --- Login backend + Koneksi Broker MQTT, dalam satu form/tombol ---
   $('auth-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     hideAuthError();
-    const username = $('f-username').value.trim();
-    const password = $('f-password').value;
+    const { host, path } = parseBrokerUrl($('f-mqtt-broker').value);
+    const port = Number($('f-mqtt-port').value);
+    const clientId = $('f-mqtt-clientid').value.trim();
+    const username = $('f-mqtt-username').value.trim();
+    const password = $('f-mqtt-password').value;
+    const topic = $('f-mqtt-topic').value.trim();
+    const topicControl = $('f-mqtt-topic-control').value.trim();
 
     setConnectingState(true);
+
+    // 1. Login ke Back-End dulu (memenuhi fitur Login)
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
@@ -1308,11 +1313,44 @@
         showAuthError(data.message || 'Username atau password salah.');
         return;
       }
-      currentOperator = username;
-      connectMqttAfterLogin();
     } catch (err) {
       setConnectingState(false);
       showAuthError('Back-End tidak dapat dihubungi. Pastikan server.py sedang berjalan, atau coba Mode Demo di bawah.');
+      return;
+    }
+    currentOperator = username;
+
+    // 2. Login sukses, lanjut connect ke broker MQTT pakai field yang sama
+    try {
+      mqttClient = new Paho.Client(host, port, path, clientId);
+      mqttClient.onConnectionLost = onConnectionLost;
+      mqttClient.onMessageArrived = onMessageArrived;
+      mqttClient.connect({
+        userName: username,
+        password: password,
+        useSSL: true,
+        timeout: 10,
+        cleanSession: true,
+        onSuccess: () => {
+          mqttClient.subscribe(topic);
+          currentTopic = topic;
+          currentControlTopic = topicControl;
+          resetActuators();
+          setStatus(true);
+          setConnectingState(false);
+          $('operator-label').textContent = '· operator ' + currentOperator;
+          showDashboard();
+          pushToast('success', 'Login berhasil, tersambung ke broker MQTT.');
+        },
+        onFailure: (err) => {
+          setConnectingState(false);
+          setStatus(false);
+          showAuthError('Login berhasil, tapi gagal terhubung ke broker MQTT: ' + (err.errorMessage || 'periksa kembali detail broker.'));
+        },
+      });
+    } catch (err) {
+      setConnectingState(false);
+      showAuthError('Konfigurasi broker tidak valid: ' + err.message);
     }
   });
 
